@@ -14,7 +14,9 @@ sealed trait NonEmptyPointer extends Pointer {
 
 case class NodePointer(hash: Blake2b256Hash) extends NonEmptyPointer
 case class LeafPointer(hash: Blake2b256Hash) extends NonEmptyPointer
-case object EmptyPointer                     extends Pointer
+case object EmptyPointer extends Pointer {
+  override def toString: String = ""
+}
 
 sealed trait Trie[+K, +V]                         extends Product with Serializable
 final case class Leaf[+K, +V](key: K, value: V)   extends Trie[K, V]

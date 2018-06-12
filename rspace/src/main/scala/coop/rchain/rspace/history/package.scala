@@ -103,24 +103,25 @@ package object history {
   private[this] def commonPrefix[A: Eq](a: Seq[A], b: Seq[A]): Seq[A] =
     a.zip(b).takeWhile { case (l, r) => l === r }.map(_._1)
 
-  private[this] def rehash[K, V](trie: Node, nodes: Seq[(Int, Node)])(
+  private[this] def rehash[K, V](nodes: Seq[(Int, Node)])(
       implicit
       codecK: Codec[K],
       codecV: Codec[V]): Seq[(Blake2b256Hash, Trie[K, V])] =
-    nodes.scanLeft((Trie.hash[K, V](trie), trie)) {
-      case ((lastHash, _), (offset, Node(pb))) =>
-        val node = Node(pb.updated(List((offset, NodePointer(lastHash)))))
-        (Trie.hash[K, V](node), node)
-    }
+    nodes
+      .foldLeft(List.empty[(Blake2b256Hash, Trie[K, V])]) {
+        case (s @ Nil, (_, node)) =>
+          (Trie.hash[K, V](node), node) :: s
+        case (s @ ((lastHash, _) :: _), (offset, Node(pb))) =>
+          val node = Node(pb.updated(List((offset, NodePointer(lastHash)))))
+          (Trie.hash[K, V](node), node) :: s
+      }
 
-  private[this] def insertTries[T, K, V](
-      store: ITrieStore[T, K, V],
-      txn: T,
-      rehashedNodes: Seq[(Blake2b256Hash, Trie[K, V])]): Option[Blake2b256Hash] =
-    rehashedNodes.foldLeft(None: Option[Blake2b256Hash]) {
-      case (_, (hash, trie)) =>
+  private[this] def insertTries[T, K, V](store: ITrieStore[T, K, V],
+                                         txn: T,
+                                         rehashedNodes: Seq[(Blake2b256Hash, Trie[K, V])]): Unit =
+    rehashedNodes.foreach {
+      case ((hash, trie)) =>
         store.put(txn, hash, trie)
-        Some(hash)
     }
 
   def insert[T, K, V](store: ITrieStore[T, K, V], key: K, value: V)(implicit
@@ -162,8 +163,9 @@ package object history {
         val emptyNode     = Node(PointerBlock.create())
         val emptyNodes    = sharedPath.map((b: Byte) => (JByte.toUnsignedInt(b), emptyNode))
         val nodes         = emptyNodes ++ parents
-        val rehashedNodes = rehash[K, V](hd, nodes)
-        val newRootHash   = insertTries(store, txn, rehashedNodes).get
+        val rehashedNodes = rehash[K, V]((-1, hd) +: nodes)
+        insertTries(store, txn, rehashedNodes)
+        val (newRootHash, _) = rehashedNodes(0)
         store.putRoot(txn, NodePointer(newRootHash))
         logger.debug(s"workingRootHash: $newRootHash")
       }
@@ -211,8 +213,9 @@ package object history {
                   case Seq() =>
                     throw new InsertException("A leaf had no parents")
                 }
-                val rehashedNodes = rehash[K, V](hd, tl)
-                val newRootHash   = insertTries(store, txn, rehashedNodes).get
+                val rehashedNodes = rehash[K, V]((-1, hd) +: tl)
+                insertTries(store, txn, rehashedNodes)
+                val (newRootHash, _) = rehashedNodes(0)
                 store.putRoot(txn, NodePointer(newRootHash))
                 logger.debug(s"workingRootHash: $newRootHash")
             }
@@ -230,8 +233,9 @@ package object history {
                 val pathLength    = parents.length
                 val newLeafIndex  = JByte.toUnsignedInt(encodedKeyNew(pathLength))
                 val hd            = Node(pb.updated(List((newLeafIndex, LeafPointer(newLeafHash)))))
-                val rehashedNodes = rehash[K, V](hd, parents)
-                val newRootHash   = insertTries(store, txn, rehashedNodes).get
+                val rehashedNodes = rehash[K, V]((-1, hd) +: parents)
+                insertTries(store, txn, rehashedNodes)
+                val (newRootHash, _) = rehashedNodes(0)
                 store.putRoot(txn, NodePointer(newRootHash))
                 logger.debug(s"workingRootHash: $newRootHash")
             }
@@ -251,12 +255,13 @@ package object history {
     }
 
   @tailrec
-  private[this] def propagateLeafUpward[T, K, V](
-      hash: Blake2b256Hash,
-      parents: Seq[(Int, Node)]): (Pointer, Option[Node], Seq[(Int, Node)]) =
+  private[this] def propagateLeafUpward[T, K, V](hash: Blake2b256Hash, parents: Seq[(Int, Node)])(
+      implicit
+      codecK: Codec[K],
+      codecV: Codec[V]): (Pointer, Seq[(Int, Node)]) =
     parents match {
       case Nil =>
-        (LeafPointer(hash), None, Seq.empty[(Int, Node)])
+        (LeafPointer(hash), Seq.empty[(Int, Node)])
       case (byte, Node(pointerBlock)) +: tail =>
         // Get the children of the immediate parent
         pointerBlock.children match {
@@ -265,23 +270,28 @@ package object history {
           case Vector() => throw new DeleteException("PointerBlock has no children")
           // If there are is only one child, then we know that it is the thing we are trying to
           // propagate upwards, and we can go ahead and do that.
-          case Vector(_) => propagateLeafUpward(hash, tail)
+          case Vector(_) => propagateLeafUpward(hash, tail)(codecK, codecV)
           // Otherwise, if there are > 2 children, we can update the parent node's Vector
           // at the given index to point to the leaf.
-          case _ =>
-            (EmptyPointer, Some(Node(pointerBlock.updated(List((byte, LeafPointer(hash)))))), tail)
+          case _ => {
+            val node = Node(pointerBlock.updated(List((byte, LeafPointer(hash)))))
+            (EmptyPointer, (-1, node) +: tail)
+          }
         }
     }
 
   @tailrec
-  private[this] def deleteLeaf[T, K, V](
-      parents: Seq[(Int, Node)]): (Pointer, Option[Node], Seq[(Int, Node)]) =
+  private[this] def deleteLeaf[T, K, V](parents: Seq[(Int, Node)])(
+      implicit
+      codecK: Codec[K],
+      codecV: Codec[V]): (Pointer, Seq[(Int, Node)]) =
     parents match {
       case Nil =>
-        (EmptyPointer, None, Seq.empty[(Int, Node)])
+        (EmptyPointer, Seq.empty[(Int, Node)])
       case (byte, Node(pointerBlock)) +: tail =>
+        val node = Node(pointerBlock.updated(List((byte, EmptyPointer))))
         val updated =
-          (EmptyPointer, Some(Node(pointerBlock.updated(List((byte, EmptyPointer))))), tail)
+          (EmptyPointer, (-1, node) +: tail)
         // Get the children of the immediate parent
         pointerBlock.childrenWithIndex match {
           // If there are no children, then something is wrong, because one of the children
@@ -291,7 +301,7 @@ package object history {
           // If there are is only one child, then we know that it is the thing we are trying to
           // delete, and we can go ahead and move up the trie.
           case Vector(_) =>
-            deleteLeaf(tail)
+            deleteLeaf(tail)(codecK, codecV)
           // If there are two children, then we know that one of them points down to the thing
           // we are trying to delete.  We then decide how to handle the other child based on
           // whether or not it is a Node or a Leaf
@@ -302,7 +312,7 @@ package object history {
               // Vector at the given index to `None`.
               case NodePointer(_) => updated
               // If the other child is a Leaf, then we must propagate it up the trie.
-              case LeafPointer(otherHash) => propagateLeafUpward(otherHash, tail)
+              case LeafPointer(otherHash) => propagateLeafUpward(otherHash, tail)(codecK, codecV)
             }
           // Otherwise if there are > 2 children, update the parent node's Vector at the given
           // index to `None`.
@@ -340,16 +350,13 @@ package object history {
             // If the "tip" is equal to a leaf containing the given key and value, commence
             // with the deletion process.
             case leaf @ Leaf(_, _) if leaf == Leaf(key, value) =>
-              val (ptr, hd, nodesToRehash) = deleteLeaf(parents)
-              hd match {
-                case None => store.putRoot(txn, ptr); true
-                case Some(hd) =>
-                  val rehashedNodes = rehash[K, V](hd, nodesToRehash)
-                  val newRootHash   = insertTries[T, K, V](store, txn, rehashedNodes).get
-                  store.putRoot(txn, NodePointer(newRootHash))
-                  logger.debug(s"workingRootHash: $newRootHash")
-                  true
-              }
+              val (ptr, nodesToRehash) = deleteLeaf(parents)(codecK, codecV)
+              val rehashedNodes        = rehash[K, V](nodesToRehash)
+              insertTries[T, K, V](store, txn, rehashedNodes)
+              val newRootHash = rehashedNodes.headOption.map(r => NodePointer(r._1)).getOrElse(ptr)
+              store.putRoot(txn, newRootHash)
+              logger.debug(s"workingRootHash: $newRootHash")
+              true
             // The entry is not in the trie
             case Leaf(_, _) => false
           }
