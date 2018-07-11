@@ -269,9 +269,10 @@ lazy val blockStorage = (project in file("block-storage"))
   .settings(
     name := "block-storage",
     version := "0.0.1-SNAPSHOT",
-    libraryDependencies ++= commonDependencies ++ Seq(
+    libraryDependencies ++= commonDependencies ++ protobufLibDependencies ++ Seq(
       lmdbjava,
       catsCore,
+      catsEffect,
       catsMtl,
       scodecCore,
       scodecCats,
@@ -295,7 +296,7 @@ lazy val blockStorage = (project in file("block-storage"))
     licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
     homepage := Some(url("https://www.rchain.coop"))
   )
-  .dependsOn(shared)
+  .dependsOn(shared, models)
 
 
 lazy val rspace = (project in file("rspace"))
