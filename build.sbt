@@ -251,7 +251,7 @@ lazy val roscala_macros = (project in file("roscala/macros"))
       "org.scala-lang" % "scala-reflect" % scalaVersion.value
     )
   )
-  
+
 lazy val roscala = (project in file("roscala"))
   .settings(commonSettings: _*)
   .settings(
@@ -262,6 +262,41 @@ lazy val roscala = (project in file("roscala"))
       List(addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full))),
     libraryDependencies ++= commonDependencies
   ).dependsOn(roscala_macros)
+
+lazy val blockStorage = (project in file("block-storage"))
+  .enablePlugins(SiteScaladocPlugin, GhpagesPlugin, TutPlugin)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "block-storage",
+    version := "0.0.1-SNAPSHOT",
+    libraryDependencies ++= commonDependencies ++ Seq(
+      lmdbjava,
+      catsCore,
+      catsMtl,
+      scodecCore,
+      scodecCats,
+      scodecBits,
+      guava
+    ),
+    /* Publishing Settings */
+    scmInfo := Some(ScmInfo(url("https://github.com/rchain/rchain"), "git@github.com:rchain/rchain.git")),
+    git.remoteRepo := scmInfo.value.get.connection,
+    useGpg := true,
+    pomIncludeRepository := { _ => false },
+    publishMavenStyle := true,
+    publishTo := {
+      val nexus = "https://oss.sonatype.org/"
+      if (isSnapshot.value)
+        Some("snapshots" at nexus + "content/repositories/snapshots")
+      else
+        Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+    },
+    publishArtifact in Test := false,
+    licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
+    homepage := Some(url("https://www.rchain.coop"))
+  )
+  .dependsOn(shared)
+
 
 lazy val rspace = (project in file("rspace"))
   .enablePlugins(SiteScaladocPlugin, GhpagesPlugin, TutPlugin)
@@ -332,6 +367,7 @@ lazy val rspaceBench = (project in file("rspace-bench"))
 lazy val rchain = (project in file("."))
   .settings(commonSettings: _*)
   .aggregate(
+    blockStorage,
     casper,
     comm,
     crypto,
