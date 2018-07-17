@@ -108,9 +108,12 @@ object BlockAPI {
 
   private def getBlock[F[_]: Monad: MultiParentCasper](q: BlockQuery,
                                                        dag: BlockDag): Option[BlockMessage] = {
-    val fullHash = dag.blockLookup.keys.find(h => {
-      Base16.encode(h.toByteArray).startsWith(q.hash)
-    })
+    val fullHash = dag.blockLookup
+      .getAll()
+      .map(_._1)
+      .find(h => {
+        Base16.encode(h.toByteArray).startsWith(q.hash)
+      })
     fullHash.map(h => dag.blockLookup(h))
   }
 }

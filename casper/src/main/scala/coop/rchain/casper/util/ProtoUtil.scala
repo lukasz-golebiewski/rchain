@@ -10,7 +10,6 @@ import coop.rchain.casper.protocol._
 import coop.rchain.casper.util.rholang.InterpreterUtil
 import coop.rchain.crypto.codec.Base16
 import coop.rchain.crypto.hash.Blake2b256
-import coop.rchain.crypto.signatures.Ed25519
 import coop.rchain.models.Par
 
 import scala.annotation.tailrec
@@ -22,7 +21,7 @@ object ProtoUtil {
    */
   // TODO: Move into BlockDAG and remove corresponding param once that is moved over from simulator
   @tailrec
-  def isInMainChain(blocks: collection.Map[ByteString, BlockMessage],
+  def isInMainChain(blocks: BlockStore[Id],
                     candidate: BlockMessage,
                     target: BlockMessage): Boolean =
     if (candidate == target) {
@@ -95,22 +94,19 @@ object ProtoUtil {
     sortedWeights.take(maxCliqueMinSize).sum
   }
 
-  def mainParent(blocks: collection.Map[ByteString, BlockMessage],
-                 blockMessage: BlockMessage): Option[BlockMessage] =
+  def mainParent(blocks: BlockStore[Id], blockMessage: BlockMessage): Option[BlockMessage] =
     for {
       hdr        <- blockMessage.header
       parentHash <- hdr.parentsHashList.headOption
       mainParent <- blocks.get(parentHash)
     } yield mainParent
 
-  def weightFromValidator(b: BlockMessage,
-                          validator: ByteString,
-                          blocks: collection.Map[ByteString, BlockMessage]): Int =
+  def weightFromValidator(b: BlockMessage, validator: ByteString, blocks: BlockStore[Id]): Int =
     mainParent(blocks, b)
       .map(weightMap(_).getOrElse(validator, 0))
       .getOrElse(weightMap(b).getOrElse(validator, 0)) //no parents means genesis -- use itself
 
-  def weightFromSender(b: BlockMessage, blocks: collection.Map[ByteString, BlockMessage]): Int =
+  def weightFromSender(b: BlockMessage, blocks: BlockStore[Id]): Int =
     weightFromValidator(b, b.sender, blocks)
 
   def parents(b: BlockMessage): Seq[ByteString] =
@@ -149,7 +145,7 @@ object ProtoUtil {
     } else {
       def getDeploys(b: BlockMessage) =
         DagOperations
-          .bfTraverse[BlockMessage](Some(b))(parents(_).iterator.map(dag.blockLookup))
+          .bfTraverse[BlockMessage](Some(b))(parents(_).iterator.map(dag.blockLookup.apply))
           .takeWhile(_ != gca)
           .flatMap(b => {
             b.body.map(_.newCode).getOrElse(List.empty[Deploy])

@@ -140,7 +140,7 @@ object InterpreterUtil {
       // TODO: Fix so that all search branches reach GCA before quitting
       val deploys = DagOperations
         .bfTraverse[BlockMessage](parentTuplespaces.map(_._1))(
-          ProtoUtil.parents(_).iterator.map(dag.blockLookup))
+          ProtoUtil.parents(_).iterator.map(dag.blockLookup.apply))
         .takeWhile(_ != gca)
         .flatMap(ProtoUtil.deploys(_).reverse)
         .toIndexedSeq
@@ -164,7 +164,7 @@ object InterpreterUtil {
       implicit scheduler: Scheduler): (Checkpoint, Set[StateHash]) = {
     val parents = ProtoUtil
       .parents(b)
-      .map(dag.blockLookup)
+      .map(dag.blockLookup.apply)
 
     val deploys = ProtoUtil.deploys(b)
 

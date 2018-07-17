@@ -64,9 +64,9 @@ trait BlockGenerator {
                            serializedJustifications,
                            creator,
                            nextCreatorSeqNum)
-      idToBlocks     = chain.idToBlocks + (nextId               -> block)
-      blockLookup    = chain.blockLookup + (serializedBlockHash -> block)
-      latestMessages = chain.latestMessages + (block.sender     -> serializedBlockHash)
+      idToBlocks     = chain.idToBlocks + (nextId -> block)
+      blockLookup    = { chain.blockLookup.put(serializedBlockHash, block); chain.blockLookup }
+      latestMessages = chain.latestMessages + (block.sender -> serializedBlockHash)
       latestMessagesOfLatestMessages = chain.latestMessagesOfLatestMessages + (block.sender -> ProtoUtil
         .toLatestMessages(serializedJustifications))
       updatedChildren = HashMap[BlockHash, Set[BlockHash]](parentsHashList.map {

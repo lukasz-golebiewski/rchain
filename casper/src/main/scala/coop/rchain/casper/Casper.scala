@@ -201,7 +201,7 @@ sealed abstract class MultiParentCasperInstances {
         Capture[F].capture {
           val result = deployHist.clone()
           DagOperations
-            .bfTraverse(p)(parents(_).iterator.map(dag.blockLookup))
+            .bfTraverse(p)(parents(_).iterator.map(dag.blockLookup.apply))
             .foreach(b => {
               b.body.foreach(_.newCode.foreach(result -= _))
             })
@@ -545,9 +545,8 @@ sealed abstract class MultiParentCasperInstances {
             }
 
             val newSeqNum = bd.currentSeqNum.updated(block.sender, block.seqNum)
-
+            bd.blockLookup.put(hash, block)
             bd.copy(
-              blockLookup = bd.blockLookup.updated(hash, block),
               //Assume that a non-equivocating validator must include
               //its own latest message in the justification. Therefore,
               //for a given validator the blocks are guaranteed to arrive in causal order.

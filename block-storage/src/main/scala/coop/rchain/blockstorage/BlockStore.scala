@@ -25,7 +25,7 @@ trait BlockStore[F[_]] {
 
   def contains(blockHash: BlockHash): F[Boolean] = get(blockHash).map(_.isDefined)
 
-  private[blockstorage] def getAll(): F[Seq[(BlockHash, BlockMessage)]]
+  def getAll(): F[Seq[(BlockHash, BlockMessage)]]
 }
 
 object BlockStore {

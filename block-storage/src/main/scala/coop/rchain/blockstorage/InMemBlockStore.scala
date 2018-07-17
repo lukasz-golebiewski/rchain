@@ -29,7 +29,7 @@ class InMemBlockStore[F[_]] private ()(implicit
       message = kids.get(blockHash)
     } yield message
 
-  private[blockstorage] def getAll(): F[Seq[(BlockHash, BlockMessage)]] = stateF.get.map(_.toSeq)
+  def getAll(): F[Seq[(BlockHash, BlockMessage)]] = stateF.get.map(_.toSeq)
 }
 
 object InMemBlockStore {

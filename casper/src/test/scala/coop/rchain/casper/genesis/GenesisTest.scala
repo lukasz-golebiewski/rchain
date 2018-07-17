@@ -144,7 +144,8 @@ class GenesisTest extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val genesis = Genesis.fromInputFiles[Id](None, numValidators, genesisPath, None, runtimeManager)
     val blockDag =
-      BlockDag().copy(blockLookup = HashMap[ByteString, BlockMessage](genesis.blockHash -> genesis))
+      BlockDag(store =
+        BlockDag.inMemStore(HashMap[ByteString, BlockMessage](genesis.blockHash -> genesis)))
 
     val (maybePostGenesisStateHash, _) = InterpreterUtil
       .validateBlockCheckpoint(

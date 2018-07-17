@@ -136,8 +136,8 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
     val updatedBlockPostState = b.body.get.postState.get.withTuplespace(postGenStateHash)
     val updatedBlockBody      = b.body.get.withPostState(updatedBlockPostState)
     val updatedBlock          = b.withBody(updatedBlockBody)
-    chain.copy(idToBlocks = chain.idToBlocks.updated(id, updatedBlock),
-               blockLookup = chain.blockLookup.updated(b.blockHash, updatedBlock))
+    chain.blockLookup.put(b.blockHash, updatedBlock)
+    chain.copy(idToBlocks = chain.idToBlocks.updated(id, updatedBlock))
   }
 
   it should "merge histories in case of multiple parents" in {

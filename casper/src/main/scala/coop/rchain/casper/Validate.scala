@@ -169,7 +169,7 @@ object Validate {
     val parentNumber = ProtoUtil
       .parents(b)
       .headOption
-      .map(dag.blockLookup andThen ProtoUtil.blockNumber)
+      .map(dag.blockLookup.apply _ andThen ProtoUtil.blockNumber)
     val number = ProtoUtil.blockNumber(b)
     val result = parentNumber.fold(number == 0)(_ + 1 == number)
 

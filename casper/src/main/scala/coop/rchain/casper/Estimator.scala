@@ -1,14 +1,15 @@
 package coop.rchain.casper
 
+import cats.Id
 import cats.implicits._
 import com.google.protobuf.ByteString
+import coop.rchain.blockstorage.BlockStore
 import coop.rchain.casper.protocol.BlockMessage
 import coop.rchain.casper.util.DagOperations
 import coop.rchain.casper.util.ProtoUtil.{parents, weightFromValidator, weightMap}
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Set}
-
 import coop.rchain.catscontrib.ListContrib
 
 object Estimator {
@@ -52,18 +53,17 @@ object Estimator {
 
     val scoresMap = buildScoresMap(blockDag)
     sortChildren(IndexedSeq(genesis.blockHash), blockDag.childMap, scoresMap)
-      .map(blockDag.blockLookup)
+      .map(blockDag.blockLookup.apply)
   }
 
   def buildScoresMap(blockDag: BlockDag): Map[BlockHash, Int] = {
-    def hashParents(blockLookup: Map[BlockHash, BlockMessage],
-                    hash: BlockHash): Iterator[BlockHash] = {
+    def hashParents(blockLookup: BlockStore[Id], hash: BlockHash): Iterator[BlockHash] = {
       val b = blockLookup(hash)
       parents(b).iterator
     }
 
     def addValidatorWeightDownSupportingChain(scoreMap: Map[BlockHash, Int],
-                                              blockLookup: Map[BlockHash, BlockMessage],
+                                              blockLookup: BlockStore[Id],
                                               validator: Validator,
                                               latestBlockHash: BlockHash) =
       DagOperations
@@ -81,7 +81,7 @@ object Estimator {
     //add scores to the blocks implicitly supported through
     //including a latest block as a "step parent"
     def addValidatorWeightToImplicitlySupported(scoreMap: Map[BlockHash, Int],
-                                                blockLookup: Map[BlockHash, BlockMessage],
+                                                blockLookup: BlockStore[Id],
                                                 childMap: Map[BlockHash, Set[BlockHash]],
                                                 validator: Validator,
                                                 latestBlockHash: BlockHash) =
@@ -103,7 +103,7 @@ object Estimator {
         }
 
     def addValidatorWeightToBlockScore(acc: Map[BlockHash, Int],
-                                       blockLookup: Map[BlockHash, BlockMessage],
+                                       blockLookup: BlockStore[Id],
                                        childMap: Map[BlockHash, Set[BlockHash]],
                                        validator: Validator,
                                        latestBlockHash: BlockHash) = {

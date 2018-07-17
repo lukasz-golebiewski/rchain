@@ -52,7 +52,7 @@ object DagOperations {
     if (b1 == b2) b1
     else {
       def parents(b: BlockMessage): Iterator[BlockMessage] =
-        ProtoUtil.parents(b).iterator.map(dag.blockLookup)
+        ProtoUtil.parents(b).iterator.map(dag.blockLookup.apply)
 
       val b1Ancestors = new mutable.HashSet[BlockMessage]
       bfTraverse[BlockMessage](Some(b1))(parents).foreach(b1Ancestors += _)
@@ -66,7 +66,7 @@ object DagOperations {
         dag.childMap
           .getOrElse(b.blockHash, HashSet.empty[BlockHash])
           .iterator
-          .map(dag.blockLookup)
+          .map(dag.blockLookup.apply)
           .find(commonAncestors(_))
           .iterator
 

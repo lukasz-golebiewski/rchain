@@ -1,7 +1,8 @@
 package coop.rchain.casper
 
-import cats.Applicative
+import cats.{Applicative, Id}
 import cats.implicits._
+import coop.rchain.blockstorage.BlockStore
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.protocol.{BlockMessage, Justification}
 import coop.rchain.casper.util.ProtoUtil._
@@ -70,8 +71,7 @@ sealed abstract class SafetyOracleInstances {
         minTotalValidatorWeight(estimate, maxCliqueMinSize(vertexCount, edgeCount))
       }
 
-    private def computeTotalWeight(blocks: collection.Map[BlockHash, BlockMessage],
-                                   estimate: BlockMessage): Int =
+    private def computeTotalWeight(blocks: BlockStore[Id], estimate: BlockMessage): Int =
       weightMapTotal(mainParentWeightMap(blocks, estimate))
 
     private def candidateWeights(blockDag: BlockDag,
@@ -85,8 +85,7 @@ sealed abstract class SafetyOracleInstances {
       } yield (validator, stake)
     }
 
-    private def mainParentWeightMap(blocks: collection.Map[BlockHash, BlockMessage],
-                                    estimate: BlockMessage) = {
+    private def mainParentWeightMap(blocks: BlockStore[Id], estimate: BlockMessage) = {
       val estimateMainParent = mainParent(blocks, estimate)
       estimateMainParent match {
         case Some(parent) => weightMap(parent)
@@ -111,11 +110,15 @@ sealed abstract class SafetyOracleInstances {
         } yield justificationBlock).nonEmpty
 
       // TODO: Potentially replace with isInBlockDAG
-      def filterChildren(candidate: BlockMessage,
-                         blocks: collection.Map[BlockHash, BlockMessage]): List[BlockMessage] =
-        blocks.values.filter { potentialChild =>
-          isInMainChain(blocks, candidate, potentialChild)
-        }.toList
+      def filterChildren(candidate: BlockMessage, blocks: BlockStore[Id]): List[BlockMessage] =
+        //TODO API needs expansion
+        blocks
+          .getAll()
+          .map(_._2)
+          .filter { potentialChild =>
+            isInMainChain(blocks, candidate, potentialChild)
+          }
+          .toList
 
       def neverEventuallySeeDisagreement(first: Validator, second: Validator): Boolean = {
         val potentialDisagreements: List[BlockMessage] =

@@ -61,10 +61,11 @@ class BlockQueryResponseTest extends FlatSpec with Matchers {
       def blockDag: F[BlockDag] =
         BlockDag(
           HashMap.empty[Int, BlockMessage],
-          HashMap[BlockHash, BlockMessage](
-            ProtoUtil.stringToByteString(genesisHashString) -> genesisBlock,
-            ProtoUtil.stringToByteString(secondHashString)  -> secondBlock
-          ),
+          BlockDag.inMemStore(
+            HashMap[BlockHash, BlockMessage](
+              ProtoUtil.stringToByteString(genesisHashString) -> genesisBlock,
+              ProtoUtil.stringToByteString(secondHashString)  -> secondBlock
+            )),
           HashMap.empty[BlockHash, HashSet[BlockHash]],
           LatestMessages.empty,
           HashMap.empty[Validator, LatestMessages],
