@@ -1,6 +1,6 @@
 package coop.rchain.blockstorage
 
-import cats.FlatMap
+import cats.{FlatMap, Functor}
 import cats.implicits._
 import cats.mtl.MonadState
 import coop.rchain.blockstorage.BlockStore.BlockHash
@@ -10,10 +10,12 @@ import coop.rchain.metrics.Metrics
 import scala.language.higherKinds
 
 class InMemBlockStore[F[_]] private ()(implicit
+                                       val functor: Functor[F],
                                        flatMapF: FlatMap[F],
                                        stateF: MonadState[F, Map[BlockHash, BlockMessage]],
                                        metricsF: Metrics[F])
     extends BlockStore[F] {
+
   def put(blockHash: BlockHash, blockMessage: BlockMessage): F[Unit] =
     for {
       _ <- metricsF.incrementCounter("block-store-put")

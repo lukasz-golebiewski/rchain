@@ -10,6 +10,7 @@ import coop.rchain.metrics.Metrics.MetricsNOP
 import org.scalactic.anyvals.PosInt
 import org.scalatest._
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
+import cats.implicits._
 
 import scala.language.higherKinds
 
@@ -31,11 +32,6 @@ class BlockStoreTest
     BlockMessage().withHeader(Header().withVersion(v).withTimestamp(ts))
 
   def withStore[R](f: BlockStore[Id] => R): R = {
-    implicit val applicativeId: Applicative[Id] = new Applicative[Id] {
-      override def pure[A](x: A): Id[A] = x
-
-      override def ap[A, B](ff: Id[A => B])(fa: Id[A]): Id[B] = ff.apply(fa)
-    }
     implicit val metrics: Metrics[Id] = new MetricsNOP[Id]()
     implicit val state: MonadState[Id, Map[BlockHash, BlockMessage]] =
       new MonadState[Id, Map[BlockHash, BlockMessage]] {
@@ -78,7 +74,6 @@ class BlockStoreTest
         store.get(k) shouldBe Some(v)
     }
     store.getAll() should have size items.size
-  //TODO verify that no other values are present
   }
 
   "Block Store" should "overwrite existing value" in withStore { store =>
@@ -94,6 +89,5 @@ class BlockStoreTest
     items.foreach { case (k, _, v2) => store.get(k) shouldBe Some(v2) }
 
     store.getAll() should have size items.size
-  //TODO verify that no other values are present
   }
 }

@@ -91,9 +91,10 @@ sealed abstract class MultiParentCasperInstances {
       private val version = 0L
 
       private val _blockDag: AtomicSyncVar[BlockDag] = new AtomicSyncVar(
-        BlockDag().copy(
-          blockLookup = HashMap[BlockHash, BlockMessage](genesis.blockHash -> genesis))
-      )
+        BlockDag(
+          store =
+            BlockDag.inMemStore(HashMap[BlockHash, BlockMessage](genesis.blockHash -> genesis))))
+
       private val initStateHash = runtimeManager.initStateHash
 
       private val (maybePostGenesisStateHash, _) = InterpreterUtil
@@ -423,7 +424,7 @@ sealed abstract class MultiParentCasperInstances {
         latestMessages match {
           case Nil => false
           case (_, justificationBlockHash) +: remainder =>
-            val justificationBlock = dag.blockLookup(justificationBlockHash)
+            val justificationBlock = dag.blockLookup.get(justificationBlockHash).get
             if (equivocationRecord.equivocationDetectedBlockHashes.contains(justificationBlockHash)) {
               true
             } else {

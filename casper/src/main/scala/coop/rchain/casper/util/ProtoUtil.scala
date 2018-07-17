@@ -1,6 +1,8 @@
 package coop.rchain.casper.util
 
+import cats.Id
 import com.google.protobuf.ByteString
+import coop.rchain.blockstorage.BlockStore
 import coop.rchain.casper.BlockDag
 import coop.rchain.casper.EquivocationRecord.SequenceNumber
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
@@ -51,7 +53,7 @@ object ProtoUtil {
 
   @tailrec
   def findJustificationParentWithSeqNum(b: BlockMessage,
-                                        blockLookup: collection.Map[BlockHash, BlockMessage],
+                                        blockLookup: BlockStore[Id],
                                         seqNum: SequenceNumber): Option[BlockMessage] =
     if (b.seqNum == seqNum) {
       Some(b)
