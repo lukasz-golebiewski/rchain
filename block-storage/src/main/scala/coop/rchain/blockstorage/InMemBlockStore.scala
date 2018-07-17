@@ -1,12 +1,11 @@
 package coop.rchain.blockstorage
 
 import cats.FlatMap
+import cats.implicits._
 import cats.mtl.MonadState
-import coop.rchain.blockstorage.BlockStore.{BlockHash, BlockStoreBracket}
+import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.protocol.BlockMessage
 import coop.rchain.metrics.Metrics
-import cats.implicits._
-import cats.syntax._
 
 import scala.language.higherKinds
 
