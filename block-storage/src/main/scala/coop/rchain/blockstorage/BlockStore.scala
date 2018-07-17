@@ -1,6 +1,6 @@
 package coop.rchain.blockstorage
 
-import cats.MonadError
+import cats.{FlatMap, MonadError}
 import cats.effect.{Bracket, Sync}
 import cats.mtl.MonadState
 import com.google.protobuf.ByteString
@@ -28,20 +28,9 @@ object BlockStore {
   type BlockStoreBracket[M[_]] = Bracket[M, BlockStoreError]
 
   def createMapBased[F[_]](implicit
-                           bracketF: BlockStoreBracket[F],
+                           flatMapF: FlatMap[F],
                            stateF: MonadState[F, Map[BlockHash, BlockMessage]],
-                           metricsF: Metrics[F]): BlockStore[F] =
-    new BlockStore[F] {
-      def put(blockHash: BlockHash, blockMessage: BlockMessage): F[Unit] =
-        bracketF.flatMap(stateF.get) { kids =>
-          stateF.set(kids.updated(blockHash, blockMessage))
-        }
-
-      def get(blockHash: BlockHash): F[Option[BlockMessage]] =
-        bracketF.map(stateF.get) { kids =>
-          kids.get(blockHash)
-        }
-    }
+                           metricsF: Metrics[F]): BlockStore[F] = InMemBlockStore.create()
 
   /** LMDB backed implementation
     */
