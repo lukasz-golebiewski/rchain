@@ -15,6 +15,8 @@ trait BlockStore[F[_]] {
   def put(blockHash: BlockHash, blockMessage: BlockMessage): F[Unit]
 
   def get(blockHash: BlockHash): F[Option[BlockMessage]]
+
+  private[blockstorage] def getAll(): F[Seq[(BlockHash, BlockMessage)]]
 }
 
 object BlockStore {

@@ -26,6 +26,8 @@ class InMemBlockStore[F[_]] private ()(implicit
       _       <- metricsF.incrementCounter("block-store-get")
       message = kids.get(blockHash)
     } yield message
+
+  private[blockstorage] def getAll(): F[Seq[(BlockHash, BlockMessage)]] = stateF.get.map(_.toSeq)
 }
 
 object InMemBlockStore {
