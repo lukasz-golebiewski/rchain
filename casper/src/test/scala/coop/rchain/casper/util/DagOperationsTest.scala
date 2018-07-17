@@ -1,18 +1,26 @@
 package coop.rchain.casper.util
 
-import coop.rchain.casper.BlockDag
+import coop.rchain.casper.{BlockDag, MultiParentCasperInstances}
 import coop.rchain.casper.protocol._
 import org.scalatest.{FlatSpec, Matchers}
-import cats.Monad
+import cats.{Id, Monad}
 import cats.data.State
 import cats.implicits._
+import cats.mtl.MonadState
 import cats.mtl.implicits._
+import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.helper.BlockGenerator
 import coop.rchain.casper.helper.BlockGenerator._
+import coop.rchain.metrics.Metrics
+import coop.rchain.metrics.Metrics.MetricsNOP
 import coop.rchain.shared.Time
 
 class DagOperationsTest extends FlatSpec with Matchers with BlockGenerator {
-  val initState = BlockDag().copy(currentId = -1)
+  implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
+    MultiParentCasperInstances.state
+  implicit val metricsId: Metrics[Id] = new MetricsNOP()
+
+  val initState = BlockDag[Id].copy(currentId = -1)
 
   "Greatest common ancestor" should "be computed properly" in {
     /*

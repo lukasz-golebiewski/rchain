@@ -1,5 +1,6 @@
 package coop.rchain.casper.util
 
+import cats.Id
 import coop.rchain.casper.protocol.BlockMessage
 import coop.rchain.casper.BlockDag
 import coop.rchain.casper.Estimator.BlockHash
@@ -48,7 +49,7 @@ object DagOperations {
   def greatestCommonAncestor(b1: BlockMessage,
                              b2: BlockMessage,
                              genesis: BlockMessage,
-                             dag: BlockDag): BlockMessage =
+                             dag: BlockDag[Id]): BlockMessage =
     if (b1 == b2) b1
     else {
       def parents(b: BlockMessage): Iterator[BlockMessage] =

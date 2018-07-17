@@ -8,8 +8,9 @@ import coop.rchain.casper.protocol.BlockMessage
 import coop.rchain.metrics.Metrics
 
 import scala.language.higherKinds
-
 import cats.implicits._
+
+import scala.collection.immutable.HashMap
 
 trait BlockStore[F[_]] {
   import BlockStore.BlockHash
@@ -41,7 +42,7 @@ object BlockStore {
                            functorF: Functor[F],
                            flatMapF: FlatMap[F],
                            stateF: MonadState[F, Map[BlockHash, BlockMessage]],
-                           metricsF: Metrics[F]): BlockStore[F] = InMemBlockStore.create()
+                           metricsF: Metrics[F]): BlockStore[F] = InMemBlockStore.create
 
   /** LMDB backed implementation
     */
@@ -50,4 +51,6 @@ object BlockStore {
                    monadErrorF: BlockStoreMonadError[F],
                    bracketF: BlockStoreBracket[F],
                    syncF: Sync[F]): BlockStore[F] = ???
+
+  def main(args: Array[String]): Unit = {}
 }

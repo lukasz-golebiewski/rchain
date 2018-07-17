@@ -7,6 +7,7 @@ import coop.rchain.models.Par
 import coop.rchain.rholang.interpreter.Interpreter
 import java.io.StringReader
 
+import cats.Id
 import com.google.protobuf.ByteString
 import coop.rchain.casper.util.rholang.RuntimeManager.StateHash
 import coop.rchain.rspace.trace.Event
@@ -28,7 +29,7 @@ object InterpreterUtil {
   //does not match the computed hash based on the deploys
   def validateBlockCheckpoint(b: BlockMessage,
                               genesis: BlockMessage,
-                              dag: BlockDag,
+                              dag: BlockDag[Id],
                               defaultStateHash: StateHash,
                               knownStateHashes: Set[StateHash],
                               runtimeManager: RuntimeManager)(
@@ -58,7 +59,7 @@ object InterpreterUtil {
       parents: Seq[BlockMessage],
       deploys: Seq[Deploy],
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       defaultStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])(
@@ -79,7 +80,7 @@ object InterpreterUtil {
   private[casper] def computeBlockCheckpoint(
       b: BlockMessage,
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       defaultStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])(
@@ -104,7 +105,7 @@ object InterpreterUtil {
   private def computeParentsPostState(
       parents: Seq[BlockMessage],
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       defaultStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])(
@@ -157,7 +158,7 @@ object InterpreterUtil {
   private def computeBlockCheckpointFromDeploys(
       b: BlockMessage,
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       defaultStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])(

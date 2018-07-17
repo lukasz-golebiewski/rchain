@@ -18,7 +18,7 @@ object Estimator {
 
   implicit val decreasingOrder = Ordering[Int].reverse
 
-  def tips(blockDag: BlockDag, genesis: BlockMessage): IndexedSeq[BlockMessage] = {
+  def tips(blockDag: BlockDag[Id], genesis: BlockMessage): IndexedSeq[BlockMessage] = {
     @tailrec
     def sortChildren(blocks: IndexedSeq[BlockHash],
                      childMap: Map[BlockHash, Set[BlockHash]],
@@ -56,7 +56,7 @@ object Estimator {
       .map(blockDag.blockLookup.apply)
   }
 
-  def buildScoresMap(blockDag: BlockDag): Map[BlockHash, Int] = {
+  def buildScoresMap(blockDag: BlockDag[Id]): Map[BlockHash, Int] = {
     def hashParents(blockLookup: BlockStore[Id], hash: BlockHash): Iterator[BlockHash] = {
       val b = blockLookup(hash)
       parents(b).iterator

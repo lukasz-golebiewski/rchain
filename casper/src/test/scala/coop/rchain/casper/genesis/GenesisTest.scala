@@ -2,11 +2,9 @@ package coop.rchain.casper.genesis
 
 import cats.Id
 import cats.implicits._
-
 import com.google.protobuf.ByteString
-
 import coop.rchain.catscontrib._
-import coop.rchain.casper.BlockDag
+import coop.rchain.casper.{BlockDag, MultiParentCasperInstances}
 import coop.rchain.casper.protocol.{BlockMessage, Bond}
 import coop.rchain.casper.util.ProtoUtil
 import coop.rchain.casper.util.rholang.{InterpreterUtil, RuntimeManager}
@@ -14,18 +12,24 @@ import coop.rchain.crypto.codec.Base16
 import coop.rchain.rholang.interpreter.Runtime
 import coop.rchain.rholang.interpreter.storage.StoragePrinter
 import coop.rchain.p2p.EffectsTestInstances.{LogStub, LogicalTime}
-
 import java.io.PrintWriter
 import java.nio.file.Files
 
+import cats.mtl.MonadState
+import coop.rchain.blockstorage.BlockStore.BlockHash
+import coop.rchain.metrics.Metrics
+import coop.rchain.metrics.Metrics.MetricsNOP
 import monix.execution.Scheduler.Implicits.global
-
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.collection.immutable.HashMap
 import scala.concurrent.SyncVar
 
 class GenesisTest extends FlatSpec with Matchers with BeforeAndAfterEach {
+  implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
+    MultiParentCasperInstances.state
+  implicit val metricsId: Metrics[Id] = new MetricsNOP()
+
   val storageSize     = 1024L * 1024
   def storageLocation = Files.createTempDirectory(s"casper-genesis-test-runtime")
   def genesisPath     = Files.createTempDirectory(s"casper-genesis-test")
@@ -143,9 +147,11 @@ class GenesisTest extends FlatSpec with Matchers with BeforeAndAfterEach {
     val initStateHash  = runtimeManager.initStateHash
 
     val genesis = Genesis.fromInputFiles[Id](None, numValidators, genesisPath, None, runtimeManager)
-    val blockDag =
-      BlockDag(store =
-        BlockDag.inMemStore(HashMap[ByteString, BlockMessage](genesis.blockHash -> genesis)))
+    val blockDag = {
+      val bd: BlockDag[Id] = BlockDag[Id]
+      bd.blockLookup.put(genesis.blockHash, genesis)
+      bd
+    }
 
     val (maybePostGenesisStateHash, _) = InterpreterUtil
       .validateBlockCheckpoint(

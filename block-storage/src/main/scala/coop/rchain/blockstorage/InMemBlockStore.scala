@@ -33,9 +33,9 @@ class InMemBlockStore[F[_]] private ()(implicit
 }
 
 object InMemBlockStore {
-  def create[F[_]]()(implicit
-                     flatMapF: FlatMap[F],
-                     stateF: MonadState[F, Map[BlockHash, BlockMessage]],
-                     metricsF: Metrics[F]): BlockStore[F] =
+  def create[F[_]](implicit
+                   flatMapF: FlatMap[F],
+                   stateF: MonadState[F, Map[BlockHash, BlockMessage]],
+                   metricsF: Metrics[F]): BlockStore[F] =
     new InMemBlockStore()
 }

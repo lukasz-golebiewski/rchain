@@ -20,10 +20,10 @@ import scala.language.higherKinds
 object BlockGenerator {
   implicit val timeEff = new LogicalTime[Id]
 
-  type StateWithChain[A] = StateT[Id, BlockDag, A]
+  type StateWithChain[A] = StateT[Id, BlockDag[Id], A]
 
-  type BlockDagState[F[_]] = MonadState[F, BlockDag]
-  def blockDagState[F[_]: Monad: BlockDagState]: BlockDagState[F] = MonadState[F, BlockDag]
+  type BlockDagState[F[_]] = MonadState[F, BlockDag[Id]]
+  def blockDagState[F[_]: Monad: BlockDagState]: BlockDagState[F] = MonadState[F, BlockDag[Id]]
 }
 
 trait BlockGenerator {
@@ -78,13 +78,13 @@ trait BlockGenerator {
       childMap = chain.childMap
         .++[(BlockHash, Set[BlockHash]), Map[BlockHash, Set[BlockHash]]](updatedChildren)
       updatedSeqNumbers = chain.currentSeqNum.updated(creator, nextCreatorSeqNum)
-      newChain: BlockDag = BlockDag(idToBlocks,
-                                    blockLookup,
-                                    childMap,
-                                    latestMessages,
-                                    latestMessagesOfLatestMessages,
-                                    nextId,
-                                    updatedSeqNumbers)
+      newChain: BlockDag[Id] = BlockDag(idToBlocks,
+                                        blockLookup,
+                                        childMap,
+                                        latestMessages,
+                                        latestMessagesOfLatestMessages,
+                                        nextId,
+                                        updatedSeqNumbers)
       _ <- blockDagState[F].set(newChain)
     } yield block
 }

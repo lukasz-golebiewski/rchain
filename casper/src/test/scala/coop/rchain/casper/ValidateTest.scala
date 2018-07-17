@@ -2,8 +2,10 @@ package coop.rchain.casper
 
 import cats.{Id, Monad}
 import cats.implicits._
+import cats.mtl.MonadState
 import cats.mtl.implicits._
 import com.google.protobuf.ByteString
+import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.helper.BlockGenerator
 import coop.rchain.casper.helper.BlockGenerator._
@@ -11,6 +13,8 @@ import coop.rchain.casper.protocol._
 import coop.rchain.casper.util.ProtoUtil
 import coop.rchain.crypto.codec.Base16
 import coop.rchain.crypto.signatures.Ed25519
+import coop.rchain.metrics.Metrics
+import coop.rchain.metrics.Metrics.MetricsNOP
 import coop.rchain.p2p.EffectsTestInstances.LogStub
 import coop.rchain.shared.Time
 import monix.execution.Scheduler.Implicits.global
@@ -20,8 +24,11 @@ import scala.collection.immutable.HashMap
 
 class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with BlockGenerator {
   implicit val log = new LogStub[Id]
-  val initState    = BlockDag().copy(currentId = -1)
-  val ed25519      = "ed25519"
+  implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
+    MultiParentCasperInstances.state
+  implicit val metricsId: Metrics[Id] = new MetricsNOP()
+  val initState                       = BlockDag[Id].copy(currentId = -1)
+  val ed25519                         = "ed25519"
 
   override def beforeEach(): Unit = {
     log.reset()
@@ -65,7 +72,7 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
       .map(_._1)
   }
 
-  def signedBlock(i: Int)(implicit chain: BlockDag, sk: Array[Byte]): BlockMessage = {
+  def signedBlock(i: Int)(implicit chain: BlockDag[Id], sk: Array[Byte]): BlockMessage = {
     val block = chain.idToBlocks(i)
     val pk    = Ed25519.toPublic(sk)
     ProtoUtil.signBlock(block, chain, pk, sk, "ed25519", Ed25519.sign _)

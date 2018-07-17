@@ -1,6 +1,6 @@
 package coop.rchain.casper
 
-import cats.{Applicative, Monad}
+import cats.{Applicative, Id, Monad}
 import cats.implicits._
 import com.google.protobuf.ByteString
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
@@ -82,7 +82,7 @@ object Validate {
 
   def blockSender[F[_]: Applicative: Log](b: BlockMessage,
                                           genesis: BlockMessage,
-                                          dag: BlockDag): F[Boolean] =
+                                          dag: BlockDag[Id]): F[Boolean] =
     if (b == genesis) {
       true.pure[F] //genesis block has a valid sender
     } else {
@@ -104,7 +104,7 @@ object Validate {
    */
   def blockSummary[F[_]: Monad: Log: Time](block: BlockMessage,
                                            genesis: BlockMessage,
-                                           dag: BlockDag): F[Either[InvalidBlock, ValidBlock]] =
+                                           dag: BlockDag[Id]): F[Either[InvalidBlock, ValidBlock]] =
     for {
       missingBlockStatus <- Validate.missingBlocks[F](block, dag)
       timestampStatus    <- missingBlockStatus.traverse(_ => Validate.timestamp[F](block, dag))
@@ -116,8 +116,9 @@ object Validate {
                                Validate.sequenceNumber[F](block, dag))
     } yield sequenceNumberStatus.joinRight
 
-  def missingBlocks[F[_]: Applicative: Log](block: BlockMessage,
-                                            dag: BlockDag): F[Either[InvalidBlock, ValidBlock]] = {
+  def missingBlocks[F[_]: Applicative: Log](
+      block: BlockMessage,
+      dag: BlockDag[Id]): F[Either[InvalidBlock, ValidBlock]] = {
     val parentsPresent = ProtoUtil.parents(block).forall(p => dag.blockLookup.contains(p))
     val justificationsPresent =
       block.justifications.forall(j => dag.blockLookup.contains(j.latestBlockHash))
@@ -133,7 +134,7 @@ object Validate {
 
   // This is not a slashable offence
   def timestamp[F[_]: Monad: Log: Time](b: BlockMessage,
-                                        dag: BlockDag): F[Either[InvalidBlock, ValidBlock]] =
+                                        dag: BlockDag[Id]): F[Either[InvalidBlock, ValidBlock]] =
     for {
       currentTime  <- Time[F].currentMillis
       timestamp    = b.header.get.timestamp
@@ -164,8 +165,9 @@ object Validate {
                }
     } yield result
 
-  def blockNumber[F[_]: Applicative: Log](b: BlockMessage,
-                                          dag: BlockDag): F[Either[InvalidBlock, ValidBlock]] = {
+  def blockNumber[F[_]: Applicative: Log](
+      b: BlockMessage,
+      dag: BlockDag[Id]): F[Either[InvalidBlock, ValidBlock]] = {
     val parentNumber = ProtoUtil
       .parents(b)
       .headOption
@@ -191,8 +193,9 @@ object Validate {
     }
   }
 
-  def sequenceNumber[F[_]: Applicative: Log](b: BlockMessage,
-                                             dag: BlockDag): F[Either[InvalidBlock, ValidBlock]] = {
+  def sequenceNumber[F[_]: Applicative: Log](
+      b: BlockMessage,
+      dag: BlockDag[Id]): F[Either[InvalidBlock, ValidBlock]] = {
     val creatorJustificationSeqNumber = b.justifications
       .find {
         case Justification(validator, _) => validator == b.sender
@@ -216,7 +219,7 @@ object Validate {
 
   def parents[F[_]: Applicative: Log](b: BlockMessage,
                                       genesis: BlockMessage,
-                                      dag: BlockDag): F[Either[InvalidBlock, ValidBlock]] = {
+                                      dag: BlockDag[Id]): F[Either[InvalidBlock, ValidBlock]] = {
     val bParents = b.header.fold(Seq.empty[ByteString])(_.parentsHashList)
 
     if (b.justifications.isEmpty) {
@@ -253,7 +256,7 @@ object Validate {
   def justificationRegressions[F[_]: Applicative: Log](
       b: BlockMessage,
       genesis: BlockMessage,
-      dag: BlockDag): F[Either[InvalidBlock, ValidBlock]] = {
+      dag: BlockDag[Id]): F[Either[InvalidBlock, ValidBlock]] = {
     val latestMessagesOfBlock = ProtoUtil.toLatestMessages(b.justifications)
     val latestMessagesOfLatestMessagesForSender =
       dag.latestMessagesOfLatestMessages.getOrElse(b.sender, latestMessagesOfBlock)
@@ -282,7 +285,7 @@ object Validate {
   def transactions[F[_]: Applicative: Log: Capture](
       block: BlockMessage,
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       initStateHash: StateHash,
       runtimeManager: RuntimeManager,
       knownStateHashesContainer: AtomicSyncVar[Set[StateHash]])(

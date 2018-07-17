@@ -40,7 +40,7 @@ trait SafetyOracle[F[_]] {
     * @param estimate Block to detect safety on
     * @return normalizedFaultTolerance float between -1 and 1, where -1 means potentially orphaned
     */
-  def normalizedFaultTolerance(blockDag: BlockDag, estimate: BlockMessage): F[Float]
+  def normalizedFaultTolerance(blockDag: BlockDag[Id], estimate: BlockMessage): F[Float]
 }
 
 object SafetyOracle extends SafetyOracleInstances {
@@ -49,7 +49,7 @@ object SafetyOracle extends SafetyOracleInstances {
 
 sealed abstract class SafetyOracleInstances {
   def turanOracle[F[_]: Applicative]: SafetyOracle[F] = new SafetyOracle[F] {
-    def normalizedFaultTolerance(blockDag: BlockDag, estimate: BlockMessage): F[Float] = {
+    def normalizedFaultTolerance(blockDag: BlockDag[Id], estimate: BlockMessage): F[Float] = {
       val blocks                   = blockDag.blockLookup
       val totalWeight              = computeTotalWeight(blocks, estimate)
       val faultTolerance           = 2 * minMaxCliqueWeight(blockDag, estimate) - totalWeight
@@ -57,7 +57,7 @@ sealed abstract class SafetyOracleInstances {
       normalizedFaultTolerance.pure[F]
     }
 
-    private def minMaxCliqueWeight(blockDag: BlockDag, estimate: BlockMessage): Int =
+    private def minMaxCliqueWeight(blockDag: BlockDag[Id], estimate: BlockMessage): Int =
       // To have a maximum clique of half the total weight,
       // you need at least twice the weight of the candidateWeights to be greater than the total weight
       if (2 * candidateWeights(blockDag, estimate).values.sum < computeTotalWeight(
@@ -74,7 +74,7 @@ sealed abstract class SafetyOracleInstances {
     private def computeTotalWeight(blocks: BlockStore[Id], estimate: BlockMessage): Int =
       weightMapTotal(mainParentWeightMap(blocks, estimate))
 
-    private def candidateWeights(blockDag: BlockDag,
+    private def candidateWeights(blockDag: BlockDag[Id],
                                  estimate: BlockMessage): Map[Validator, Int] = {
       val weights: Map[Validator, Int] = mainParentWeightMap(blockDag.blockLookup, estimate)
       for {
@@ -93,7 +93,7 @@ sealed abstract class SafetyOracleInstances {
       }
     }
 
-    private def agreementGraphEdgeCount(blockDag: BlockDag,
+    private def agreementGraphEdgeCount(blockDag: BlockDag[Id],
                                         estimate: BlockMessage,
                                         candidates: Map[Validator, Int]): Int = {
       def seesAgreement(first: Validator, second: Validator): Boolean =
@@ -151,7 +151,7 @@ sealed abstract class SafetyOracleInstances {
     }
 
     // TODO: Change to isInBlockDAG
-    private def compatible(blockDag: BlockDag, candidate: BlockMessage, target: BlockMessage) =
+    private def compatible(blockDag: BlockDag[Id], candidate: BlockMessage, target: BlockMessage) =
       isInMainChain(blockDag.blockLookup, candidate, target)
 
     // See Turan's theorem (https://en.wikipedia.org/wiki/Tur%C3%A1n%27s_theorem)

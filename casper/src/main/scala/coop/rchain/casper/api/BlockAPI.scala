@@ -1,6 +1,6 @@
 package coop.rchain.casper.api
 
-import cats.Monad
+import cats.{Id, Monad}
 import cats.implicits._
 import com.google.protobuf.ByteString
 import com.google.protobuf.empty.Empty
@@ -107,7 +107,7 @@ object BlockAPI {
     }
 
   private def getBlock[F[_]: Monad: MultiParentCasper](q: BlockQuery,
-                                                       dag: BlockDag): Option[BlockMessage] = {
+                                                       dag: BlockDag[Id]): Option[BlockMessage] = {
     val fullHash = dag.blockLookup
       .getAll()
       .map(_._1)

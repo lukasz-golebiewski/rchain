@@ -38,7 +38,7 @@ object ProtoUtil {
     }
 
   @tailrec
-  def getMainChain(blockDag: BlockDag,
+  def getMainChain(blockDag: BlockDag[Id],
                    estimate: BlockMessage,
                    acc: IndexedSeq[BlockMessage]): IndexedSeq[BlockMessage] = {
     val parentsHashes       = ProtoUtil.parents(estimate)
@@ -137,7 +137,7 @@ object ProtoUtil {
   def conflicts(b1: BlockMessage,
                 b2: BlockMessage,
                 genesis: BlockMessage,
-                dag: BlockDag): Boolean = {
+                dag: BlockDag[Id]): Boolean = {
     val gca = DagOperations.greatestCommonAncestor(b1, b2, genesis, dag)
     if (gca == b1 || gca == b2) {
       //blocks which already exist in each other's chains do not conflict
@@ -145,7 +145,7 @@ object ProtoUtil {
     } else {
       def getDeploys(b: BlockMessage) =
         DagOperations
-          .bfTraverse[BlockMessage](Some(b))(parents(_).iterator.map(dag.blockLookup.apply))
+          .bfTraverse[BlockMessage](Some(b))(parents(_).iterator.map(dag.blockLookup(_)))
           .takeWhile(_ != gca)
           .flatMap(b => {
             b.body.map(_.newCode).getOrElse(List.empty[Deploy])
@@ -158,7 +158,7 @@ object ProtoUtil {
 
   def chooseNonConflicting(blocks: Seq[BlockMessage],
                            genesis: BlockMessage,
-                           dag: BlockDag): Seq[BlockMessage] =
+                           dag: BlockDag[Id]): Seq[BlockMessage] =
     blocks
       .foldLeft(List.empty[BlockMessage]) {
         case (acc, b) =>
@@ -217,7 +217,7 @@ object ProtoUtil {
       .withJustifications(justifications)
 
   def signBlock(block: BlockMessage,
-                dag: BlockDag,
+                dag: BlockDag[Id],
                 pk: Array[Byte],
                 sk: Array[Byte],
                 sigAlgorithm: String,

@@ -1,6 +1,6 @@
 package coop.rchain.casper
 
-import cats.{Applicative, Monad}
+import cats.{Applicative, Id, Monad}
 import cats.implicits._
 import com.google.protobuf.ByteString
 import coop.rchain.catscontrib.TaskContrib._
@@ -29,9 +29,13 @@ import scala.io.Source
 import scala.util.Try
 import java.nio.file.Path
 
+import cats.mtl.MonadState
+import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.EquivocationRecord.SequenceNumber
-import coop.rchain.casper.Estimator.Validator
+import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.util.rholang.RuntimeManager.StateHash
+import coop.rchain.metrics.Metrics
+import coop.rchain.metrics.Metrics.MetricsNOP
 import coop.rchain.rspace.{trace, Checkpoint}
 import coop.rchain.rspace.trace.{COMM, Event}
 import coop.rchain.rspace.trace.Event.codecLog
@@ -49,7 +53,7 @@ trait Casper[F[_], A] {
 }
 
 trait MultiParentCasper[F[_]] extends Casper[F, IndexedSeq[BlockMessage]] {
-  def blockDag: F[BlockDag]
+  def blockDag: F[BlockDag[Id]]
   // This is the weight of faults that have been accumulated so far.
   // We want the clique oracle to give us a fault tolerance that is greater than
   // this initial fault weight combined with our fault tolerance threshold t.
@@ -61,11 +65,34 @@ object MultiParentCasper extends MultiParentCasperInstances {
   def apply[F[_]](implicit instance: MultiParentCasper[F]): MultiParentCasper[F] = instance
 }
 
+object MultiParentCasperInstances {
+  type InMemMonadState[F[_]] = MonadState[F, Map[BlockHash, BlockMessage]]
+  def state = new MonadState[Id, Map[BlockHash, BlockMessage]] {
+    val monad: Monad[Id] = implicitly[Monad[Id]]
+
+    var map: Map[BlockHash, BlockMessage] = Map.empty
+
+    def get: Id[Map[BlockHash, BlockMessage]] = monad.pure(map)
+
+    def set(s: Map[BlockHash, BlockMessage]): Id[Unit] = ???
+
+    def inspect[A](f: Map[BlockHash, BlockMessage] => A): Id[A] = ???
+
+    def modify(f: Map[BlockHash, BlockMessage] => Map[BlockHash, BlockMessage]): Id[Unit] = {
+      map = f(map)
+      monad.pure(())
+    }
+  }
+}
+
 sealed abstract class MultiParentCasperInstances {
 
   private implicit val logSource: LogSource = LogSource(this.getClass)
 
-  def noOpsCasper[F[_]: Applicative]: MultiParentCasper[F] =
+  def noOpsCasper[F[_]: Applicative]: MultiParentCasper[F] = {
+    implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
+      MultiParentCasperInstances.state
+    implicit val metricsId: Metrics[Id] = new MetricsNOP()
     new MultiParentCasper[F] {
       def addBlock(b: BlockMessage): F[Unit]    = ().pure[F]
       def contains(b: BlockMessage): F[Boolean] = false.pure[F]
@@ -73,10 +100,11 @@ sealed abstract class MultiParentCasperInstances {
       def estimator: F[IndexedSeq[BlockMessage]] =
         Applicative[F].pure[IndexedSeq[BlockMessage]](Vector(BlockMessage()))
       def createBlock: F[Option[BlockMessage]]                           = Applicative[F].pure[Option[BlockMessage]](None)
-      def blockDag: F[BlockDag]                                          = BlockDag().pure[F]
+      def blockDag: F[BlockDag[Id]]                                      = BlockDag[Id].pure[F]
       def normalizedInitialFault(weights: Map[Validator, Int]): F[Float] = 0f.pure[F]
       def storageContents(hash: ByteString): F[String]                   = "".pure[F]
     }
+  }
 
   def hashSetCasper[
       F[_]: Monad: Capture: NodeDiscovery: TransportLayer: Log: Time: ErrorHandler: SafetyOracle](
@@ -87,13 +115,18 @@ sealed abstract class MultiParentCasperInstances {
       type BlockHash = ByteString
       type Validator = ByteString
 
+      implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
+        MultiParentCasperInstances.state
+      implicit val metricsId: Metrics[Id] = new MetricsNOP()
+
       //TODO: Extract hardcoded version
       private val version = 0L
 
-      private val _blockDag: AtomicSyncVar[BlockDag] = new AtomicSyncVar(
-        BlockDag(
-          store =
-            BlockDag.inMemStore(HashMap[BlockHash, BlockMessage](genesis.blockHash -> genesis))))
+      private val _blockDag: AtomicSyncVar[BlockDag[Id]] = {
+        val bd: BlockDag[Id] = BlockDag[Id]
+        bd.blockLookup.put(genesis.blockHash, genesis)
+        new AtomicSyncVar(bd)
+      }
 
       private val initStateHash = runtimeManager.initStateHash
 
@@ -197,7 +230,7 @@ sealed abstract class MultiParentCasperInstances {
         case None => none[BlockMessage].pure[F]
       }
 
-      private def remDeploys(dag: BlockDag, p: Seq[BlockMessage]): F[Seq[Deploy]] =
+      private def remDeploys(dag: BlockDag[Id], p: Seq[BlockMessage]): F[Seq[Deploy]] =
         Capture[F].capture {
           val result = deployHist.clone()
           DagOperations
@@ -237,7 +270,7 @@ sealed abstract class MultiParentCasperInstances {
           block  = unsignedBlockProto(body, header, justifications)
         } yield Some(block)
 
-      def blockDag: F[BlockDag] = Capture[F].capture { _blockDag.get }
+      def blockDag: F[BlockDag[Id]] = Capture[F].capture { _blockDag.get }
 
       def storageContents(hash: StateHash): F[String] = Capture[F].capture {
         if (knownStateHashesContainer.get.contains(hash)) {
@@ -292,7 +325,7 @@ sealed abstract class MultiParentCasperInstances {
         } yield status
 
       private def equivocationsCheck(block: BlockMessage,
-                                     dag: BlockDag): F[Either[InvalidBlock, ValidBlock]] = {
+                                     dag: BlockDag[Id]): F[Either[InvalidBlock, ValidBlock]] = {
         val justificationOfCreator = block.justifications
           .find {
             case Justification(validator: Validator, _) => validator == block.sender
@@ -313,7 +346,7 @@ sealed abstract class MultiParentCasperInstances {
       // See EquivocationRecord.scala for summary of algorithm.
       private def neglectedEquivocationsCheckWithRecordUpdate(
           block: BlockMessage,
-          dag: BlockDag): F[Either[InvalidBlock, ValidBlock]] =
+          dag: BlockDag[Id]): F[Either[InvalidBlock, ValidBlock]] =
         Capture[F].capture {
           val neglectedEquivocationDetected =
             equivocationsTracker.foldLeft(false) {
@@ -345,7 +378,7 @@ sealed abstract class MultiParentCasperInstances {
 
       private def getEquivocationDiscoveryStatus(
           block: BlockMessage,
-          dag: BlockDag,
+          dag: BlockDag[Id],
           equivocationRecord: EquivocationRecord,
           equivocationChild: Set[BlockMessage]): EquivocationDiscoveryStatus = {
         val equivocatingValidator = equivocationRecord.equivocator
@@ -376,12 +409,12 @@ sealed abstract class MultiParentCasperInstances {
 
       @tailrec
       private def equivocationDetectable(latestMessages: Seq[(Validator, BlockHash)],
-                                         dag: BlockDag,
+                                         dag: BlockDag[Id],
                                          equivocationRecord: EquivocationRecord,
                                          equivocationChildren: Set[BlockMessage]): Boolean = {
         def maybeAddEquivocationChildren(
             justificationBlock: BlockMessage,
-            dag: BlockDag,
+            dag: BlockDag[Id],
             equivocatingValidator: Validator,
             equivocationBaseBlockSeqNum: SequenceNumber,
             equivocationChildren: Set[BlockMessage]): Set[BlockMessage] =

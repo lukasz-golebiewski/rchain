@@ -8,11 +8,15 @@ import Catscontrib._
 import cats._
 import cats.data._
 import cats.implicits._
+import cats.mtl.MonadState
 import cats.mtl.implicits._
+import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.helper.BlockGenerator
 import coop.rchain.casper.helper.BlockGenerator._
 import coop.rchain.catscontrib.TaskContrib._
+import coop.rchain.metrics.Metrics
+import coop.rchain.metrics.Metrics.MetricsNOP
 import coop.rchain.shared.Time
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -20,7 +24,10 @@ import monix.execution.Scheduler.Implicits.global
 import scala.collection.immutable.HashMap
 
 class ForkchoiceTest extends FlatSpec with Matchers with BlockGenerator {
-  val initState = BlockDag()
+  implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
+    MultiParentCasperInstances.state
+  implicit val metricsId: Metrics[Id] = new MetricsNOP()
+  val initState                       = BlockDag[Id]
 
   // See https://docs.google.com/presentation/d/1znz01SF1ljriPzbMoFV0J127ryPglUYLFyhvsb-ftQk/edit?usp=sharing slide 29 for diagram
   "Estimator on Simple DAG" should "return the appropriate score map and forkchoice" in {
@@ -62,7 +69,7 @@ class ForkchoiceTest extends FlatSpec with Matchers with BlockGenerator {
                              HashMap(v1 -> b7.blockHash, v2 -> b4.blockHash))
       } yield b8
 
-    val chain: BlockDag = createChain[StateWithChain].runS(initState)
+    val chain: BlockDag[Id] = createChain[StateWithChain].runS(initState)
 
     val genesis = chain.idToBlocks(1)
     val b6      = chain.idToBlocks(6)
@@ -121,7 +128,7 @@ class ForkchoiceTest extends FlatSpec with Matchers with BlockGenerator {
                              HashMap(v1 -> b6.blockHash, v2 -> b5.blockHash, v3 -> b4.blockHash))
       } yield b8
 
-    val chain: BlockDag = createChain[StateWithChain].runS(initState)
+    val chain: BlockDag[Id] = createChain[StateWithChain].runS(initState)
 
     val genesis = chain.idToBlocks(1)
     val b6      = chain.idToBlocks(6)
