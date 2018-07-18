@@ -1,7 +1,8 @@
 package coop.rchain.blockstorage
 
-import cats.mtl.MonadState
-import cats.{Applicative, Id, Monad}
+import cats._
+import cats.effect._
+import cats.implicits._
 import com.google.protobuf.ByteString
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.protocol.{BlockMessage, Header}
@@ -10,7 +11,6 @@ import coop.rchain.metrics.Metrics.MetricsNOP
 import org.scalactic.anyvals.PosInt
 import org.scalatest._
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
-import cats.implicits._
 
 import scala.language.higherKinds
 
@@ -32,25 +32,37 @@ class BlockStoreTest
     BlockMessage().withHeader(Header().withVersion(v).withTimestamp(ts))
 
   def withStore[R](f: BlockStore[Id] => R): R = {
-    implicit val metrics: Metrics[Id] = new MetricsNOP[Id]()
-    implicit val state: MonadState[Id, Map[BlockHash, BlockMessage]] =
-      new MonadState[Id, Map[BlockHash, BlockMessage]] {
 
-        val monad: Monad[Id] = implicitly[Monad[Id]]
+    implicit val bracket: Bracket[Id, Exception] =
+      new Bracket[Id, Exception] {
+        def pure[A](x: A): cats.Id[A] = implicitly[Applicative[Id]].pure(x)
 
-        var map: Map[BlockHash, BlockMessage] = Map.empty
+        // Members declared in cats.ApplicativeError
+        def handleErrorWith[A](fa: cats.Id[A])(f: Exception => cats.Id[A]): cats.Id[A] =
+          ??? //implicitly[ApplicativeError[Id, Exception]].handleErrorWith(fa)(f)
 
-        def get: Id[Map[BlockHash, BlockMessage]] = monad.pure(map)
+        def raiseError[A](e: Exception): cats.Id[A] = ???
+        //implicitly[ApplicativeError[Id, Exception]].raiseError(e)
 
-        def set(s: Map[BlockHash, BlockMessage]): Id[Unit] = ???
+        // Members declared in cats.FlatMap
+        def flatMap[A, B](fa: cats.Id[A])(f: A => cats.Id[B]): cats.Id[B] =
+          implicitly[FlatMap[Id]].flatMap(fa)(f)
+        def tailRecM[A, B](a: A)(f: A => cats.Id[Either[A, B]]): cats.Id[B] =
+          implicitly[FlatMap[Id]].tailRecM(a)(f)
 
-        def inspect[A](f: Map[BlockHash, BlockMessage] => A): Id[A] = ???
-
-        def modify(f: Map[BlockHash, BlockMessage] => Map[BlockHash, BlockMessage]): Id[Unit] = {
-          map = f(map)
-          monad.pure(())
+        def bracketCase[A, B](acquire: A)(use: A => B)(
+            release: (A, ExitCase[Exception]) => Unit): B = {
+          val state = acquire
+          try {
+            use(state)
+          } finally {
+            release(acquire, ExitCase.Completed)
+          }
         }
+
       }
+    implicit val metrics: Metrics[Id] = new MetricsNOP[Id]()(bracket)
+
     val store = BlockStore.createMapBased[Id]
     f(store)
   }

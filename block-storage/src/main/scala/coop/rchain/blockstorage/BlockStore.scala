@@ -1,6 +1,6 @@
 package coop.rchain.blockstorage
 
-import cats.{FlatMap, Functor, MonadError}
+import cats.{Applicative, FlatMap, MonadError}
 import cats.effect.{Bracket, Sync}
 import cats.mtl.MonadState
 import com.google.protobuf.ByteString
@@ -15,7 +15,7 @@ import scala.collection.immutable.HashMap
 trait BlockStore[F[_]] {
   import BlockStore.BlockHash
 
-  implicit def functor: Functor[F]
+  implicit def applicative: Applicative[F]
 
   def put(blockHash: BlockHash, blockMessage: BlockMessage): F[Unit]
 
@@ -39,15 +39,13 @@ object BlockStore {
   type BlockStoreBracket[M[_]] = Bracket[M, BlockStoreError]
 
   def createMapBased[F[_]](implicit
-                           functorF: Functor[F],
-                           flatMapF: FlatMap[F],
-                           stateF: MonadState[F, Map[BlockHash, BlockMessage]],
+                           bracketF: Bracket[F, Exception],
                            metricsF: Metrics[F]): BlockStore[F] = InMemBlockStore.create
 
   /** LMDB backed implementation
     */
   def create[F[_]](implicit
-                   functorF: Functor[F],
+                   applicativeF: Applicative[F],
                    monadErrorF: BlockStoreMonadError[F],
                    bracketF: BlockStoreBracket[F],
                    syncF: Sync[F]): BlockStore[F] = ???

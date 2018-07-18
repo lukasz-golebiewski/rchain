@@ -1,41 +1,52 @@
 package coop.rchain.blockstorage
 
-import cats.{FlatMap, Functor}
-import cats.implicits._
+import cats.effect.Bracket
+import cats._
 import cats.mtl.MonadState
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.protocol.BlockMessage
 import coop.rchain.metrics.Metrics
+import coop.rchain.shared.SyncVarOps
 
 import scala.language.higherKinds
 
+import scala.concurrent.SyncVar
+
 class InMemBlockStore[F[_]] private ()(implicit
-                                       val functor: Functor[F],
-                                       flatMapF: FlatMap[F],
-                                       stateF: MonadState[F, Map[BlockHash, BlockMessage]],
+                                       bracketF: Bracket[F, Exception],
                                        metricsF: Metrics[F])
     extends BlockStore[F] {
+
+  implicit val applicative: Applicative[F] = bracketF
+
+  import cats.implicits._
+  protected[this] val stateRef: SyncVar[Map[BlockHash, BlockMessage]] =
+    SyncVarOps.create[Map[BlockHash, BlockMessage]](Map.empty)
 
   def put(blockHash: BlockHash, blockMessage: BlockMessage): F[Unit] =
     for {
       _ <- metricsF.incrementCounter("block-store-put")
-      _ <- stateF.modify(state => state.updated(blockHash, blockMessage))
-    } yield ()
+      ret <- bracketF.bracket(applicative.pure(stateRef.take()))(state =>
+              applicative.pure(stateRef.put(state.updated(blockHash, blockMessage))))(_ =>
+              applicative.pure(()))
+    } yield ret
 
   def get(blockHash: BlockHash): F[Option[BlockMessage]] =
     for {
-      kids    <- stateF.get
-      _       <- metricsF.incrementCounter("block-store-get")
-      message = kids.get(blockHash)
-    } yield message
+      _ <- metricsF.incrementCounter("block-store-get")
+      ret <- bracketF.bracket(applicative.pure(stateRef.take()))(state =>
+              applicative.pure(state.get(blockHash)))(state =>
+              applicative.pure(stateRef.put(state)))
+    } yield ret
 
-  def getAll(): F[Seq[(BlockHash, BlockMessage)]] = stateF.get.map(_.toSeq)
+  def getAll(): F[Seq[(BlockHash, BlockMessage)]] =
+    bracketF.bracket(applicative.pure(stateRef.take()))(state => applicative.pure(state.toSeq))(
+      state => applicative.pure(stateRef.put(state)))
 }
 
 object InMemBlockStore {
   def create[F[_]](implicit
-                   flatMapF: FlatMap[F],
-                   stateF: MonadState[F, Map[BlockHash, BlockMessage]],
+                   bracketF: Bracket[F, Exception],
                    metricsF: Metrics[F]): BlockStore[F] =
-    new InMemBlockStore()
+    new InMemBlockStore()(bracketF, metricsF)
 }
