@@ -6,6 +6,7 @@ import cats.arrow.FunctionK
 import cats.effect.{Bracket, ExitCase}
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.protocol.BlockMessage
+import coop.rchain.metrics.Metrics
 import coop.rchain.shared.SyncVarOps
 
 import scala.language.higherKinds
@@ -56,9 +57,24 @@ object InMemBlockStore {
       bracketF: Bracket[F, Exception]): BlockStore[F] =
     new InMemBlockStore()(bracketF)
 
-  def spoofedBracket: BlockStore[Id] =
-    create(bracketId)
+  def spoofedBracket: BlockStore[Id] = {
+    import java.nio.file.{Files, Path}
+    import org.lmdbjava._
 
+    val dbDir: Path   = Files.createTempDirectory("block-store-test-")
+    val mapSize: Long = 1024L * 1024L * 4096L
+    val env = Env
+      .create()
+      .setMapSize(mapSize)
+      .setMaxDbs(1)
+      .setMaxReaders(8)
+      .open(dbDir.toFile, List(EnvFlags.MDB_NOTLS): _*)
+
+    import coop.rchain.metrics.Metrics.MetricsNOP
+    implicit val metrics: Metrics[Id] = new MetricsNOP[Id]()(bracketId)
+    LMDBBlockStore.create(env, dbDir)(bracketId, metrics)
+
+  }
   def bracketId: Bracket[Id, Exception] =
     new Bracket[Id, Exception] {
       def pure[A](x: A): cats.Id[A] = implicitly[Applicative[Id]].pure(x)
