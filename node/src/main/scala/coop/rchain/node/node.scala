@@ -168,12 +168,11 @@ class NodeRuntime(conf: Conf)(implicit scheduler: Scheduler) {
     new Bracket[Effect, Exception] {
       def pure[A](x: A): Effect[A] = implicitly[Applicative[Effect]].pure(x)
 
-      // Members declared in ApplicativeError
-      def handleErrorWith[A](fa: Effect[A])(f: Exception => Effect[A]): Effect[A] =
-        ??? //implicitly[ApplicativeError[Effect, Exception]].handleErrorWith(fa)(f)
+      def handleErrorWith[A](fa: Effect[A])(f: Exception => Effect[A]): Effect[A] = fa.onError {
+        case Left(commError) => f(new Exception(s"$commError"))
+      }
 
-      def raiseError[A](e: Exception): Effect[A] = ???
-      //implicitly[ApplicativeError[Effect, Exception]].raiseError(e)
+      def raiseError[A](e: Exception): Effect[A] = Left(e)
 
       // Members declared in FlatMap
       def flatMap[A, B](fa: Effect[A])(f: A => Effect[B]): Effect[B] =
