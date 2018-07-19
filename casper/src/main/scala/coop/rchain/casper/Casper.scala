@@ -122,28 +122,26 @@ sealed abstract class MultiParentCasperInstances {
       //TODO: Extract hardcoded version
       private val version = 0L
 
-      private val _blockDag: AtomicSyncVar[BlockDag[Id]] = {
-        val bd: BlockDag[Id] = BlockDag[Id]
-        bd.blockLookup.put(genesis.blockHash, genesis)
-        new AtomicSyncVar(bd)
-      }
-
-      private val initStateHash = runtimeManager.initStateHash
+      private val _blockDag: AtomicSyncVar[BlockDag] = new AtomicSyncVar(
+        BlockDag().copy(
+          blockLookup = HashMap[BlockHash, BlockMessage](genesis.blockHash -> genesis))
+      )
+      private val emptyStateHash = runtimeManager.emptyStateHash
 
       private val (maybePostGenesisStateHash, _) = InterpreterUtil
         .validateBlockCheckpoint(
           genesis,
           genesis,
           _blockDag.get,
-          initStateHash,
-          Set[StateHash](initStateHash),
+          emptyStateHash,
+          Set[StateHash](emptyStateHash),
           runtimeManager
         )
       private val knownStateHashesContainer: AtomicSyncVar[Set[StateHash]] =
         maybePostGenesisStateHash match {
           case Some(postGenesisStateHash) =>
             new AtomicSyncVar(
-              Set[StateHash](initStateHash, postGenesisStateHash)
+              Set[StateHash](emptyStateHash, postGenesisStateHash)
             )
           case None => throw new Error("Genesis block validation failed.")
         }
@@ -252,7 +250,7 @@ sealed abstract class MultiParentCasperInstances {
                                                        r,
                                                        genesis,
                                                        _blockDag.get,
-                                                       initStateHash,
+                                                       emptyStateHash,
                                                        _,
                                                        runtimeManager.computeState),
               _._2)
@@ -304,7 +302,7 @@ sealed abstract class MultiParentCasperInstances {
                                             Validate.transactions[F](b,
                                                                      genesis,
                                                                      dag,
-                                                                     initStateHash,
+                                                                     emptyStateHash,
                                                                      runtimeManager,
                                                                      knownStateHashesContainer))
           postBondsCacheStatus <- postTransactionsCheckStatus.joinRight.traverse(_ =>
@@ -561,13 +559,6 @@ sealed abstract class MultiParentCasperInstances {
           _ <- Capture[F].capture(invalidBlockTracker += block.blockHash) *> addToState(block)
         } yield ()
 
-      private def allChildren[A](map: mutable.MultiMap[A, A], element: A): Set[A] =
-        DagOperations
-          .bfTraverse[A](Some(element)) { (el: A) =>
-            map.getOrElse(el, Set.empty[A]).iterator
-          }
-          .toSet
-
       private def addToState(block: BlockMessage): F[Unit] =
         Capture[F].capture {
           awaitingJustificationToChild -= block.blockHash
@@ -625,17 +616,4 @@ sealed abstract class MultiParentCasperInstances {
         } yield ()
       }
     }
-
-  def fromConfig[
-      F[_]: Monad: Capture: NodeDiscovery: TransportLayer: Log: Time: ErrorHandler: SafetyOracle,
-      G[_]: Monad: Capture: Log: Time](conf: CasperConf, runtimeManager: RuntimeManager)(
-      implicit scheduler: Scheduler): G[MultiParentCasper[F]] =
-    for {
-      genesis <- Genesis.fromInputFiles[G](conf.bondsFile,
-                                           conf.numValidators,
-                                           conf.genesisPath,
-                                           conf.walletsFile,
-                                           runtimeManager)
-      validatorId <- ValidatorIdentity.fromConfig[G](conf)
-    } yield hashSetCasper[F](runtimeManager, validatorId, genesis)
 }
