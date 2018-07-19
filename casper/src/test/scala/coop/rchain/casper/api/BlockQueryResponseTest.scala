@@ -77,7 +77,7 @@ class BlockQueryResponseTest extends FlatSpec with Matchers {
   // TODO: Test tsCheckpoint:
   // we should be able to stub in a tuplespace dump but there is currently no way to do that.
   "getBlockQueryResponse" should "return successful block info response" in {
-    implicit val blockStore   = InMemBlockStore.spoofedBracket
+    implicit val blockStore   = InMemBlockStore.inMemInstanceId
     implicit val casperEffect = testCasper[Id]
     implicit val logEff       = new LogStub[Id]
     implicit val constructorEffect =
@@ -99,7 +99,7 @@ class BlockQueryResponseTest extends FlatSpec with Matchers {
   }
 
   "getBlockQueryResponse" should "return error when no block exists" in {
-    implicit val blockStore   = InMemBlockStore.spoofedBracket
+    implicit val blockStore   = InMemBlockStore.inMemInstanceId
     implicit val casperEffect = testCasper[Id]
     implicit val logEff       = new LogStub[Id]
     implicit val constructorEffect =

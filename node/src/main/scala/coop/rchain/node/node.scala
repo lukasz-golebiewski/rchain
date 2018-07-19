@@ -206,7 +206,7 @@ class NodeRuntime(conf: Conf)(implicit scheduler: Scheduler) {
   implicit val nodeDiscoveryEffect: NodeDiscovery[Task] =
     new TLNodeDiscovery[Task](src, defaultTimeout)
   implicit val blockStore: BlockStore[Effect] =
-    InMemBlockStore.spoofedBracketEff[Effect](bracketEffect, metricsEffect)
+    InMemBlockStore.inMemInstanceEff[Effect](bracketEffect, metricsEffect)
   implicit val turanOracleEffect: SafetyOracle[Effect] = SafetyOracle.turanOracle[Effect]
 
   case class Resources(grpcServer: Server,

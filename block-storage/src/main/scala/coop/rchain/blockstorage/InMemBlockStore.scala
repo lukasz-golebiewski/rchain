@@ -54,40 +54,15 @@ object InMemBlockStore {
 
   type ExceptionalBracket[F[_]] = Bracket[F, Exception]
 
-  def spoofedBracketEff[Effect[_]: ExceptionalBracket: Metrics]: BlockStore[Effect] = {
-    import java.nio.file.{Files, Path}
+  def inMemInstanceEff[Effect[_]](implicit
+                                  bracketF: Bracket[Effect, Exception],
+                                  metricsF: Metrics[Effect]): BlockStore[Effect] =
+    InMemBlockStore.create[Effect](bracketF, metricsF)
 
-    import org.lmdbjava._
-
-    val dbDir: Path   = Files.createTempDirectory("block-store-test-")
-    val mapSize: Long = 1024L * 1024L * 4096L
-    val env = Env
-      .create()
-      .setMapSize(mapSize)
-      .setMaxDbs(1)
-      .setMaxReaders(8)
-      .open(dbDir.toFile, List(EnvFlags.MDB_NOTLS): _*)
-
-    LMDBBlockStore.create[Effect](env, dbDir)
-  }
-
-  def spoofedBracket: BlockStore[Id] = {
-    import java.nio.file.{Files, Path}
-
-    import org.lmdbjava._
-
-    val dbDir: Path   = Files.createTempDirectory("block-store-test-")
-    val mapSize: Long = 1024L * 1024L * 4096L
-    val env = Env
-      .create()
-      .setMapSize(mapSize)
-      .setMaxDbs(1)
-      .setMaxReaders(8)
-      .open(dbDir.toFile, List(EnvFlags.MDB_NOTLS): _*)
-
+  def inMemInstanceId: BlockStore[Id] = {
     import coop.rchain.metrics.Metrics.MetricsNOP
     implicit val metrics: Metrics[Id] = new MetricsNOP[Id]()(bracketId)
-    LMDBBlockStore.create(env, dbDir)(bracketId, metrics)
+    InMemBlockStore.create(bracketId, metrics)
   }
 
   def bracketId: Bracket[Id, Exception] =
