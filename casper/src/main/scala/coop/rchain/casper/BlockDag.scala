@@ -5,7 +5,6 @@ import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.protocol.BlockMessage
 
 import scala.collection.immutable.{HashMap, HashSet}
-import scala.language.higherKinds
 
 final case class BlockDag(idToBlocks: Map[Int, BlockMessage],
                           childMap: Map[BlockHash, Set[BlockHash]],
