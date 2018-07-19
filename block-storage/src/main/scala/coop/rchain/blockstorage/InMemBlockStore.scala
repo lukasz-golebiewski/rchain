@@ -1,21 +1,18 @@
 package coop.rchain.blockstorage
 
-import cats.effect.{Bracket, ExitCase}
 import cats._
-import cats.arrow.FunctionK
 import cats.effect.{Bracket, ExitCase}
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.protocol.BlockMessage
 import coop.rchain.metrics.Metrics
 import coop.rchain.shared.SyncVarOps
 
-import scala.language.higherKinds
 import scala.concurrent.SyncVar
 import scala.language.higherKinds
 
-class InMemBlockStore[F[_]] private ()(
-    implicit
-    bracketF: Bracket[F, Exception])
+class InMemBlockStore[F[_]] private ()(implicit
+                                       bracketF: Bracket[F, Exception],
+                                       metricsF: Metrics[F])
     extends BlockStore[F] {
 
   implicit val applicative: Applicative[F] = bracketF
@@ -26,7 +23,7 @@ class InMemBlockStore[F[_]] private ()(
 
   def put(blockHash: BlockHash, blockMessage: BlockMessage): F[Unit] =
     for {
-//      _ <- metricsF.incrementCounter("block-store-put")
+      _ <- metricsF.incrementCounter("block-store-put")
       ret <- bracketF.bracket(applicative.pure(stateRef.take()))(state =>
               applicative.pure(stateRef.put(state.updated(blockHash, blockMessage))))(_ =>
               applicative.pure(()))
@@ -34,7 +31,7 @@ class InMemBlockStore[F[_]] private ()(
 
   def get(blockHash: BlockHash): F[Option[BlockMessage]] =
     for {
-//      _ <- metricsF.incrementCounter("block-store-get")
+      _ <- metricsF.incrementCounter("block-store-get")
       ret <- bracketF.bracket(applicative.pure(stateRef.take()))(state =>
               applicative.pure(state.get(blockHash)))(state =>
               applicative.pure(stateRef.put(state)))
@@ -42,20 +39,24 @@ class InMemBlockStore[F[_]] private ()(
 
   //TODO mark as deprecated and remove when casper code no longer needs it
   def asMap(): F[Map[BlockHash, BlockMessage]] =
-    bracketF.bracket(applicative.pure(stateRef.take()))(state => applicative.pure(state))(state =>
-      applicative.pure(stateRef.put(state)))
+    for {
+      _ <- metricsF.incrementCounter("block-store-as-map")
+      ret <- bracketF.bracket(applicative.pure(stateRef.take()))(state => applicative.pure(state))(
+              state => applicative.pure(stateRef.put(state)))
+    } yield ret
 }
 
 object InMemBlockStore {
-  def create[F[_]](
-      implicit
-      bracketF: Bracket[F, Exception]): BlockStore[F] =
-    new InMemBlockStore()(bracketF)
+  def create[F[_]](implicit
+                   bracketF: Bracket[F, Exception],
+                   metricsF: Metrics[F]): BlockStore[F] =
+    new InMemBlockStore()(bracketF, metricsF)
 
   type ExceptionalBracket[F[_]] = Bracket[F, Exception]
 
   def spoofedBracketEff[Effect[_]: ExceptionalBracket: Metrics]: BlockStore[Effect] = {
     import java.nio.file.{Files, Path}
+
     import org.lmdbjava._
 
     val dbDir: Path   = Files.createTempDirectory("block-store-test-")
@@ -72,6 +73,7 @@ object InMemBlockStore {
 
   def spoofedBracket: BlockStore[Id] = {
     import java.nio.file.{Files, Path}
+
     import org.lmdbjava._
 
     val dbDir: Path   = Files.createTempDirectory("block-store-test-")

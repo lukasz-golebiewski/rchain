@@ -38,9 +38,9 @@ object BlockStore {
 
   type BlockStoreBracket[M[_]] = Bracket[M, BlockStoreError]
 
-  def createMapBased[F[_]](
-      implicit
-      bracketF: Bracket[F, Exception]): BlockStore[F] = InMemBlockStore.create
+  def createMapBased[F[_]](implicit
+                           bracketF: Bracket[F, Exception],
+                           metricsF: Metrics[F]): BlockStore[F] = InMemBlockStore.create
 
   /** LMDB backed implementation
     */
