@@ -1,16 +1,13 @@
 package coop.rchain.blockstorage
 
-import cats.{Applicative, FlatMap, MonadError}
+import cats.{Applicative, MonadError}
 import cats.effect.{Bracket, Sync}
-import cats.mtl.MonadState
+import cats.implicits._
 import com.google.protobuf.ByteString
 import coop.rchain.casper.protocol.BlockMessage
 import coop.rchain.metrics.Metrics
 
 import scala.language.higherKinds
-import cats.implicits._
-
-import scala.collection.immutable.HashMap
 
 trait BlockStore[F[_]] {
   import BlockStore.BlockHash
@@ -27,9 +24,14 @@ trait BlockStore[F[_]] {
   def contains(blockHash: BlockHash): F[Boolean] = get(blockHash).map(_.isDefined)
 
   def getAll(): F[Seq[(BlockHash, BlockMessage)]]
+
+  def asMap(): F[Map[BlockHash, BlockMessage]]
 }
 
 object BlockStore {
+
+  def apply[F[_]](implicit ev: BlockStore[F]): BlockStore[F] = ev
+
   type BlockHash = ByteString
   sealed trait BlockStoreError extends Throwable
   // some errors that extend BlockStoreError

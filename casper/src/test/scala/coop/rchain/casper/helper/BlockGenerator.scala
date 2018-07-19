@@ -6,6 +6,7 @@ import cats.implicits._
 import cats.mtl.MonadState
 import coop.rchain.catscontrib._
 import com.google.protobuf.ByteString
+import coop.rchain.blockstorage.BlockStore
 import coop.rchain.casper.BlockDag
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.protocol._
@@ -20,16 +21,16 @@ import scala.language.higherKinds
 object BlockGenerator {
   implicit val timeEff = new LogicalTime[Id]
 
-  type StateWithChain[A] = StateT[Id, BlockDag[Id], A]
+  type StateWithChain[A] = StateT[Id, BlockDag, A]
 
-  type BlockDagState[F[_]] = MonadState[F, BlockDag[Id]]
-  def blockDagState[F[_]: Monad: BlockDagState]: BlockDagState[F] = MonadState[F, BlockDag[Id]]
+  type BlockDagState[F[_]] = MonadState[F, BlockDag]
+  def blockDagState[F[_]: Monad: BlockDagState]: BlockDagState[F] = MonadState[F, BlockDag]
 }
 
 trait BlockGenerator {
   import BlockGenerator._
 
-  def createBlock[F[_]: Monad: BlockDagState: Time](
+  def createBlock[F[_]: Monad: BlockDagState: Time: BlockStore](
       parentsHashList: Seq[BlockHash],
       creator: Validator = ByteString.EMPTY,
       bonds: Seq[Bond] = Seq.empty[Bond],
@@ -65,7 +66,7 @@ trait BlockGenerator {
                            creator,
                            nextCreatorSeqNum)
       idToBlocks     = chain.idToBlocks + (nextId -> block)
-      blockLookup    = { chain.blockLookup.put(serializedBlockHash, block); chain.blockLookup }
+      _              <- BlockStore[F].put(serializedBlockHash, block)
       latestMessages = chain.latestMessages + (block.sender -> serializedBlockHash)
       latestMessagesOfLatestMessages = chain.latestMessagesOfLatestMessages + (block.sender -> ProtoUtil
         .toLatestMessages(serializedJustifications))
@@ -78,13 +79,12 @@ trait BlockGenerator {
       childMap = chain.childMap
         .++[(BlockHash, Set[BlockHash]), Map[BlockHash, Set[BlockHash]]](updatedChildren)
       updatedSeqNumbers = chain.currentSeqNum.updated(creator, nextCreatorSeqNum)
-      newChain: BlockDag[Id] = BlockDag(idToBlocks,
-                                        blockLookup,
-                                        childMap,
-                                        latestMessages,
-                                        latestMessagesOfLatestMessages,
-                                        nextId,
-                                        updatedSeqNumbers)
+      newChain: BlockDag = BlockDag(idToBlocks,
+                                    childMap,
+                                    latestMessages,
+                                    latestMessagesOfLatestMessages,
+                                    nextId,
+                                    updatedSeqNumbers)
       _ <- blockDagState[F].set(newChain)
     } yield block
 }

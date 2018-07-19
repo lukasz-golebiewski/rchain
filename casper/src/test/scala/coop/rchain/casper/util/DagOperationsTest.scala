@@ -9,6 +9,7 @@ import cats.effect.Bracket
 import cats.implicits._
 import cats.mtl.MonadState
 import cats.mtl.implicits._
+import coop.rchain.blockstorage.{BlockStore, InMemBlockStore}
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.blockstorage.InMemBlockStore
 import coop.rchain.casper.helper.BlockGenerator
@@ -17,7 +18,7 @@ import coop.rchain.shared.Time
 
 class DagOperationsTest extends FlatSpec with Matchers with BlockGenerator {
   def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  val initState                         = BlockDag[Id]()(bracketId).copy(currentId = -1)
+  val initState                         = BlockDag().copy(currentId = -1)
 
   "Greatest common ancestor" should "be computed properly" in {
     /*
@@ -33,7 +34,7 @@ class DagOperationsTest extends FlatSpec with Matchers with BlockGenerator {
      *           |
      *         genesis
      */
-    def createChain[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq.empty)
         b1      <- createBlock[F](Seq(genesis.blockHash))

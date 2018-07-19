@@ -56,7 +56,7 @@ class BlockQueryResponseTest extends FlatSpec with Matchers {
 
   val faultTolerance = -1f
 
-  def testCasper[F[_]: Applicative]: MultiParentCasper[F] =
+  def testCasper[F[_]: Applicative: BlockStore]: MultiParentCasper[F] =
     new MultiParentCasper[F] {
       def addBlock(b: BlockMessage): F[Unit]    = ().pure[F]
       def contains(b: BlockMessage): F[Boolean] = false.pure[F]
@@ -64,10 +64,11 @@ class BlockQueryResponseTest extends FlatSpec with Matchers {
       def estimator: F[IndexedSeq[BlockMessage]] =
         Applicative[F].pure[IndexedSeq[BlockMessage]](Vector(BlockMessage()))
       def createBlock: F[Option[BlockMessage]] = Applicative[F].pure[Option[BlockMessage]](None)
-      def blockDag: F[BlockDag[Id]] = {
-        val bd: BlockDag[Id] = BlockDag[Id]()(bracketId)
-        bd.blockLookup.put(ProtoUtil.stringToByteString(genesisHashString), genesisBlock)
-        bd.blockLookup.put(ProtoUtil.stringToByteString(secondHashString), secondBlock)
+      def blockDag: F[BlockDag] = {
+        val bd: BlockDag = BlockDag()
+        // FIXME this can be written as F
+        BlockStore[F].put(ProtoUtil.stringToByteString(genesisHashString), genesisBlock)
+        BlockStore[F].put(ProtoUtil.stringToByteString(secondHashString), secondBlock)
         bd
       }.pure[F]
 

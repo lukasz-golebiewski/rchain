@@ -13,6 +13,7 @@ import cats.effect.Bracket
 import cats.implicits._
 import cats.mtl.MonadState
 import cats.mtl.implicits._
+import coop.rchain.blockstorage.BlockStore
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.blockstorage.InMemBlockStore
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
@@ -24,10 +25,10 @@ import scala.collection.immutable.{HashMap, HashSet}
 
 class CasperUtilTest extends FlatSpec with Matchers with BlockGenerator {
   def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  val initState                         = BlockDag[Id]()(bracketId)
+  val initState                         = BlockDag()
 
   "isInMainChain" should "classify appropriately" in {
-    def createChain[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq())
         b2      <- createBlock[F](Seq(genesis.blockHash))
@@ -45,7 +46,7 @@ class CasperUtilTest extends FlatSpec with Matchers with BlockGenerator {
   }
 
   "isInMainChain" should "classify diamond DAGs appropriately" in {
-    def createChain[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq())
         b2      <- createBlock[F](Seq(genesis.blockHash))
@@ -70,7 +71,7 @@ class CasperUtilTest extends FlatSpec with Matchers with BlockGenerator {
   "isInMainChain" should "classify complicated chains appropriately" in {
     val v1 = ByteString.copyFromUtf8("Validator One")
     val v2 = ByteString.copyFromUtf8("Validator Two")
-    def createChain[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq(), ByteString.EMPTY)
         b2      <- createBlock[F](Seq(genesis.blockHash), v2)
@@ -122,7 +123,7 @@ class CasperUtilTest extends FlatSpec with Matchers with BlockGenerator {
   "Blocks" should "conflict if they use the same deploys in different histories" in {
     val deploys = (0 until 6).map(basicDeploy)
 
-    def createChain[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq())
         b2      <- createBlock[F](Seq(genesis.blockHash), deploys = Seq(deploys(0)))

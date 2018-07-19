@@ -9,6 +9,7 @@ import java.io.StringReader
 
 import cats.Id
 import com.google.protobuf.ByteString
+import coop.rchain.casper.Estimator.BlockHash
 import coop.rchain.casper.util.rholang.RuntimeManager.StateHash
 import coop.rchain.rspace.trace.Event
 import coop.rchain.rspace.trace.Event._
@@ -29,7 +30,8 @@ object InterpreterUtil {
   //does not match the computed hash based on the deploys
   def validateBlockCheckpoint(b: BlockMessage,
                               genesis: BlockMessage,
-                              dag: BlockDag[Id],
+                              dag: BlockDag,
+                              internalMap: Map[BlockHash, BlockMessage],
                               emptyStateHash: StateHash,
                               knownStateHashes: Set[StateHash],
                               runtimeManager: RuntimeManager)(
@@ -41,6 +43,7 @@ object InterpreterUtil {
       computeBlockCheckpointFromDeploys(b,
                                         genesis,
                                         dag,
+                                        internalMap,
                                         emptyStateHash,
                                         knownStateHashes,
                                         runtimeManager.replayComputeState(log))
@@ -59,13 +62,20 @@ object InterpreterUtil {
       parents: Seq[BlockMessage],
       deploys: Seq[Deploy],
       genesis: BlockMessage,
-      dag: BlockDag[Id],
+      dag: BlockDag,
+      internalMap: Map[BlockHash, BlockMessage],
       emptyStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])
     : (Checkpoint, Set[StateHash]) = {
     val (postStateHash, updatedStateHashes) =
-      computeParentsPostState(parents, genesis, dag, emptyStateHash, knownStateHashes, computeState)
+      computeParentsPostState(parents,
+                              genesis,
+                              dag,
+                              internalMap,
+                              emptyStateHash,
+                              knownStateHashes,
+                              computeState)
 
     val Right(postDeploysCheckpoint) = computeState(postStateHash, deploys)
     val postDeploysStateHash         = ByteString.copyFrom(postDeploysCheckpoint.root.bytes.toArray)
@@ -75,7 +85,8 @@ object InterpreterUtil {
   private def computeParentsPostState(
       parents: Seq[BlockMessage],
       genesis: BlockMessage,
-      dag: BlockDag[Id],
+      dag: BlockDag,
+      internalMap: Map[BlockHash, BlockMessage],
       emptyStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])
@@ -101,7 +112,7 @@ object InterpreterUtil {
       val gca =
         parentTuplespaces
           .map(_._1)
-          .reduce(DagOperations.greatestCommonAncestor(_, _, genesis, dag))
+          .reduce(DagOperations.greatestCommonAncestor(_, _, genesis, dag, internalMap))
 
       val gcaStateHash = ProtoUtil.tuplespace(gca).get
       assert(
@@ -111,7 +122,7 @@ object InterpreterUtil {
       // TODO: Fix so that all search branches reach GCA before quitting
       val deploys = DagOperations
         .bfTraverse[BlockMessage](parentTuplespaces.map(_._1))(
-          ProtoUtil.parents(_).iterator.map(dag.blockLookup.apply))
+          ProtoUtil.parents(_).iterator.map(internalMap.apply))
         .takeWhile(_ != gca)
         .flatMap(ProtoUtil.deploys(_).reverse)
         .toIndexedSeq
@@ -128,14 +139,15 @@ object InterpreterUtil {
   private[casper] def computeBlockCheckpointFromDeploys(
       b: BlockMessage,
       genesis: BlockMessage,
-      dag: BlockDag[Id],
+      dag: BlockDag,
+      internalMap: Map[BlockHash, BlockMessage],
       emptyStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])
     : (Checkpoint, Set[StateHash]) = {
     val parents = ProtoUtil
       .parents(b)
-      .map(dag.blockLookup.apply)
+      .map(internalMap.apply)
 
     val deploys = ProtoUtil.deploys(b)
 
@@ -147,6 +159,7 @@ object InterpreterUtil {
       deploys,
       genesis,
       dag,
+      internalMap,
       emptyStateHash,
       knownStateHashes,
       computeState

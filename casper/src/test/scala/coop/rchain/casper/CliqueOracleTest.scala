@@ -13,6 +13,7 @@ import cats.mtl.MonadState
 import cats.mtl.implicits._
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.blockstorage.InMemBlockStore
+import coop.rchain.blockstorage.{BlockStore, InMemBlockStore}
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.helper.BlockGenerator
 import coop.rchain.casper.helper.BlockGenerator._
@@ -25,7 +26,7 @@ import scala.collection.immutable.{HashMap, HashSet}
 
 class CliqueOracleTest extends FlatSpec with Matchers with BlockGenerator {
   def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  val initState                         = BlockDag[Id]()(bracketId)
+  val initState                         = BlockDag()
 
   // See https://docs.google.com/presentation/d/1znz01SF1ljriPzbMoFV0J127ryPglUYLFyhvsb-ftQk/edit?usp=sharing slide 29 for diagram
   "Turan Oracle" should "detect finality as appropriate" in {
@@ -34,7 +35,7 @@ class CliqueOracleTest extends FlatSpec with Matchers with BlockGenerator {
     val v1Bond = Bond(v1, 2)
     val v2Bond = Bond(v2, 3)
     val bonds  = Seq(v1Bond, v2Bond)
-    def createChain[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq(), ByteString.EMPTY, bonds)
         b2 <- createBlock[F](Seq(genesis.blockHash),
@@ -67,13 +68,16 @@ class CliqueOracleTest extends FlatSpec with Matchers with BlockGenerator {
                              HashMap(v1 -> b7.blockHash, v2 -> b4.blockHash))
       } yield b8
 
-    val chain: BlockDag[Id] = createChain[StateWithChain].runS(initState)
+    implicit def blockStore = InMemBlockStore.spoofedBracket[StateWithChain]
+    val chain: BlockDag     = createChain[StateWithChain].runS(initState)
 
     val genesis = chain.idToBlocks(1)
     val b2      = chain.idToBlocks(2)
     val b3      = chain.idToBlocks(3)
     val b4      = chain.idToBlocks(4)
 
+    //FIXME one store to rule them all
+    implicit def blockStoreId      = InMemBlockStore.spoofedBracket[Id]
     implicit val turanOracleEffect = SafetyOracle.turanOracle[Id]
 
     def runSafetyOracle[F[_]: Monad: SafetyOracle]: F[Unit] =
@@ -99,7 +103,7 @@ class CliqueOracleTest extends FlatSpec with Matchers with BlockGenerator {
     val v2Bond = Bond(v2, 20)
     val v3Bond = Bond(v3, 15)
     val bonds  = Seq(v1Bond, v2Bond, v3Bond)
-    def createChain[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq(), ByteString.EMPTY, bonds)
         b2 <- createBlock[F](
@@ -136,13 +140,15 @@ class CliqueOracleTest extends FlatSpec with Matchers with BlockGenerator {
                              HashMap(v1 -> b6.blockHash, v2 -> b5.blockHash, v3 -> b4.blockHash))
       } yield b8
 
-    val chain: BlockDag[Id] = createChain[StateWithChain].runS(initState)
+    implicit def blockStore = InMemBlockStore.spoofedBracket[StateWithChain]
+    val chain: BlockDag     = createChain[StateWithChain].runS(initState)
 
     val genesis = chain.idToBlocks(1)
     val b2      = chain.idToBlocks(2)
     val b3      = chain.idToBlocks(3)
     val b4      = chain.idToBlocks(4)
 
+    implicit def blockStoreId      = InMemBlockStore.spoofedBracket[Id]
     implicit val turanOracleEffect = SafetyOracle.turanOracle[Id]
 
     def runSafetyOracle[F[_]: Monad: SafetyOracle]: F[Unit] =

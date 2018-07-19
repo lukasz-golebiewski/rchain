@@ -16,6 +16,7 @@ import java.nio.file.Files
 
 import cats.effect.Bracket
 import cats.mtl.MonadState
+import coop.rchain.blockstorage.BlockStore
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.blockstorage.InMemBlockStore
 import coop.rchain.casper.helper.BlockGenerator
@@ -37,7 +38,7 @@ import scala.concurrent.SyncVar
 
 class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
   def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  val initState                         = BlockDag()(bracketId).copy(currentId = -1)
+  val initState                         = BlockDag().copy(currentId = -1)
   val storageSize                       = 1024L * 1024
   val storageDirectory                  = Files.createTempDirectory("casper-interp-util-test")
   val activeRuntime                     = Runtime.create(storageDirectory, storageSize)
@@ -48,7 +49,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
   private def computeBlockCheckpoint(
       b: BlockMessage,
       genesis: BlockMessage,
-      dag: BlockDag[Id],
+      dag: BlockDag,
       defaultStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])
@@ -94,7 +95,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
      *           |
      *         genesis
      */
-    def createChain[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq.empty, deploys = genesisDeploys)
         b1      <- createBlock[F](Seq(genesis.blockHash), deploys = b1Deploys)
@@ -155,7 +156,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
     b3PostState.contains("@{7}!(7)") should be(true)
   }
 
-  private def injectPostStateHash(chain: BlockDag[Id],
+  private def injectPostStateHash(chain: BlockDag,
                                   id: Int,
                                   b: BlockMessage,
                                   postGenStateHash: StateHash) = {
@@ -195,7 +196,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
      *         \    /
      *         genesis
      */
-    def createChain[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq.empty, deploys = genesisDeploys)
         b1      <- createBlock[F](Seq(genesis.blockHash), deploys = b1Deploys)
@@ -294,7 +295,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
                                runtimeManager.computeState)
     val computedTsLog  = computedTsCheckpoint.log.map(EventConverter.toCasperEvent)
     val computedTsHash = ByteString.copyFrom(computedTsCheckpoint.root.bytes.toArray)
-    val chain: BlockDag[Id] =
+    val chain: BlockDag =
       createBlock[StateWithChain](Seq.empty,
                                   deploys = deploys,
                                   tsHash = computedTsHash,
@@ -344,7 +345,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
                                runtimeManager.computeState)
     val computedTsLog  = computedTsCheckpoint.log.map(EventConverter.toCasperEvent)
     val computedTsHash = ByteString.copyFrom(computedTsCheckpoint.root.bytes.toArray)
-    val chain: BlockDag[Id] =
+    val chain: BlockDag =
       createBlock[StateWithChain](Seq.empty,
                                   deploys = deploys,
                                   tsHash = computedTsHash,
@@ -398,7 +399,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
                                runtimeManager.computeState)
     val computedTsLog  = computedTsCheckpoint.log.map(EventConverter.toCasperEvent)
     val computedTsHash = ByteString.copyFrom(computedTsCheckpoint.root.bytes.toArray)
-    val chain: BlockDag[Id] =
+    val chain: BlockDag =
       createBlock[StateWithChain](Seq.empty,
                                   deploys = deploys,
                                   tsHash = computedTsHash,
@@ -449,7 +450,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
                                runtimeManager.computeState)
     val computedTsLog  = computedTsCheckpoint.log.map(EventConverter.toCasperEvent)
     val computedTsHash = ByteString.copyFrom(computedTsCheckpoint.root.bytes.toArray)
-    val chain: BlockDag[Id] =
+    val chain: BlockDag =
       createBlock[StateWithChain](Seq.empty,
                                   deploys = deploys,
                                   tsHash = computedTsHash,

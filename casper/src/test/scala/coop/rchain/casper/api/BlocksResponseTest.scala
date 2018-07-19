@@ -24,7 +24,7 @@ import scala.collection.immutable.{HashMap, HashSet}
 // See [[/docs/casper/images/no_finalizable_block_mistake_with_no_disagreement_check.png]]
 class BlocksResponseTest extends FlatSpec with Matchers with BlockGenerator {
   def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  val initState                         = BlockDag[Id]()(bracketId)
+  val initState                         = BlockDag()
 
   val v1     = ByteString.copyFromUtf8("Validator One")
   val v2     = ByteString.copyFromUtf8("Validator Two")
@@ -73,8 +73,8 @@ class BlocksResponseTest extends FlatSpec with Matchers with BlockGenerator {
              HashMap(v1 -> b6.blockHash, v2 -> b5.blockHash, v3 -> b4.blockHash))
     } yield b8
 
-  val chain: BlockDag[Id] = createChain.runS(initState)
-  val genesis             = chain.idToBlocks(1)
+  val chain: BlockDag = createChain.runS(initState)
+  val genesis         = chain.idToBlocks(1)
 
   def testCasper[F[_]: Applicative]: MultiParentCasper[F] =
     new MultiParentCasper[F] {
@@ -83,7 +83,7 @@ class BlocksResponseTest extends FlatSpec with Matchers with BlockGenerator {
       def deploy(r: Deploy): F[Unit]                                     = ().pure[F]
       def estimator: F[IndexedSeq[BlockMessage]]                         = Estimator.tips(chain, genesis).pure[F]
       def createBlock: F[Option[BlockMessage]]                           = Applicative[F].pure[Option[BlockMessage]](None)
-      def blockDag: F[BlockDag[Id]]                                      = chain.pure[F]
+      def blockDag: F[BlockDag]                                          = chain.pure[F]
       def normalizedInitialFault(weights: Map[Validator, Int]): F[Float] = 0f.pure[F]
       def storageContents(hash: BlockHash): F[String]                    = "".pure[F]
     }

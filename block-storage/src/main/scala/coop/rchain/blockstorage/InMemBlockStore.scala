@@ -2,13 +2,13 @@ package coop.rchain.blockstorage
 
 import cats.effect.{Bracket, ExitCase}
 import cats._
-import cats.mtl.MonadState
+import cats.effect.{Bracket, ExitCase}
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.protocol.BlockMessage
 import coop.rchain.shared.SyncVarOps
-
 import scala.language.higherKinds
 import scala.concurrent.SyncVar
+import scala.language.higherKinds
 
 class InMemBlockStore[F[_]] private ()(
     implicit
@@ -37,9 +37,15 @@ class InMemBlockStore[F[_]] private ()(
               applicative.pure(stateRef.put(state)))
     } yield ret
 
+  //TODO kill with fire
   def getAll(): F[Seq[(BlockHash, BlockMessage)]] =
     bracketF.bracket(applicative.pure(stateRef.take()))(state => applicative.pure(state.toSeq))(
       state => applicative.pure(stateRef.put(state)))
+
+  //TODO kill with fire
+  def asMap(): F[Map[BlockHash, BlockMessage]] =
+    bracketF.bracket(applicative.pure(stateRef.take()))(state => applicative.pure(state))(state =>
+      applicative.pure(stateRef.put(state)))
 }
 
 object InMemBlockStore {
@@ -74,6 +80,5 @@ object InMemBlockStore {
           release(acquire, ExitCase.Completed)
         }
       }
-
     }
 }

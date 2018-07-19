@@ -8,6 +8,7 @@ import cats.implicits._
 import cats.mtl.MonadState
 import cats.mtl.implicits._
 import com.google.protobuf.ByteString
+import coop.rchain.blockstorage.{BlockStore, InMemBlockStore}
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.blockstorage.InMemBlockStore
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
@@ -37,7 +38,7 @@ import scala.collection.immutable.HashMap
 class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with BlockGenerator {
   def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
   implicit val log                      = new LogStub[Id]
-  val initState                         = BlockDag[Id]()(bracketId).copy(currentId = -1)
+  val initState                         = BlockDag().copy(currentId = -1)
   val ed25519                           = "ed25519"
 
   override def beforeEach(): Unit = {
@@ -82,7 +83,7 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
       .map(_._1)
   }
 
-  def signedBlock(i: Int)(implicit chain: BlockDag[Id], sk: Array[Byte]): BlockMessage = {
+  def signedBlock(i: Int)(implicit chain: BlockDag, sk: Array[Byte]): BlockMessage = {
     val block = chain.idToBlocks(i)
     val pk    = Ed25519.toPublic(sk)
     ProtoUtil.signBlock(block, chain, pk, sk, "ed25519", Ed25519.sign _)
@@ -260,7 +261,7 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
         justifications = latestMessages(justifications)
       )
 
-    def createChainWithValidators[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChainWithValidators[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         b0 <- createBlock[F](Seq.empty, bonds = bonds)
         b1 <- createValidatorBlock[F](Seq(b0), Seq.empty, 0)

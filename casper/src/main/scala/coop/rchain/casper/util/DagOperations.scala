@@ -49,11 +49,12 @@ object DagOperations {
   def greatestCommonAncestor(b1: BlockMessage,
                              b2: BlockMessage,
                              genesis: BlockMessage,
-                             dag: BlockDag[Id]): BlockMessage =
+                             dag: BlockDag,
+                             internalMap: Map[BlockHash, BlockMessage]): BlockMessage =
     if (b1 == b2) b1
     else {
       def parents(b: BlockMessage): Iterator[BlockMessage] =
-        ProtoUtil.parents(b).iterator.map(dag.blockLookup.apply)
+        ProtoUtil.parents(b).iterator.map(internalMap)
 
       val b1Ancestors = new mutable.HashSet[BlockMessage]
       bfTraverse[BlockMessage](Some(b1))(parents).foreach(b1Ancestors += _)
@@ -67,7 +68,7 @@ object DagOperations {
         dag.childMap
           .getOrElse(b.blockHash, HashSet.empty[BlockHash])
           .iterator
-          .map(dag.blockLookup.apply)
+          .map(internalMap)
           .find(commonAncestors(_))
           .iterator
 
@@ -75,7 +76,7 @@ object DagOperations {
         dag.childMap
           .getOrElse(b.blockHash, HashSet.empty[BlockHash])
           .exists(hash => {
-            val c = dag.blockLookup(hash)
+            val c = internalMap(hash)
             b1Ancestors(c) ^ b2Ancestors(c)
           })
       })
