@@ -17,8 +17,9 @@ import coop.rchain.casper.helper.BlockGenerator._
 import coop.rchain.shared.Time
 
 class DagOperationsTest extends FlatSpec with Matchers with BlockGenerator {
-  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  val initState                         = BlockDag().copy(currentId = -1)
+  implicit def blockStore      = InMemBlockStore.spoofedBracket
+  implicit def blockStoreChain = InMemBlockStore.fromIdToT[StateWithChain](blockStore)
+  val initState                = BlockDag().copy(currentId = -1)
 
   "Greatest common ancestor" should "be computed properly" in {
     /*
@@ -45,6 +46,7 @@ class DagOperationsTest extends FlatSpec with Matchers with BlockGenerator {
         b6      <- createBlock[F](Seq(b2.blockHash, b4.blockHash))
         b7      <- createBlock[F](Seq(b4.blockHash, b5.blockHash))
       } yield b7
+
     val chain   = createChain[StateWithChain].runS(initState)
     val genesis = chain.idToBlocks(0)
 
@@ -55,11 +57,16 @@ class DagOperationsTest extends FlatSpec with Matchers with BlockGenerator {
     val b6 = chain.idToBlocks(6)
     val b7 = chain.idToBlocks(7)
 
-    DagOperations.greatestCommonAncestor(b1, b5, genesis, chain) should be(b1)
-    DagOperations.greatestCommonAncestor(b3, b2, genesis, chain) should be(b1)
-    DagOperations.greatestCommonAncestor(b6, b7, genesis, chain) should be(b1)
-    DagOperations.greatestCommonAncestor(b2, b2, genesis, chain) should be(b2)
-    DagOperations.greatestCommonAncestor(b3, b7, genesis, chain) should be(b3)
+    DagOperations.greatestCommonAncestor(b1, b5, genesis, chain, BlockStore[Id].asMap()) should be(
+      b1)
+    DagOperations.greatestCommonAncestor(b3, b2, genesis, chain, BlockStore[Id].asMap()) should be(
+      b1)
+    DagOperations.greatestCommonAncestor(b6, b7, genesis, chain, BlockStore[Id].asMap()) should be(
+      b1)
+    DagOperations.greatestCommonAncestor(b2, b2, genesis, chain, BlockStore[Id].asMap()) should be(
+      b2)
+    DagOperations.greatestCommonAncestor(b3, b7, genesis, chain, BlockStore[Id].asMap()) should be(
+      b3)
   }
 
 }

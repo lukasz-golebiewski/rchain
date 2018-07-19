@@ -36,17 +36,18 @@ import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 import scala.collection.immutable.HashMap
 
 class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with BlockGenerator {
-  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  implicit val log                      = new LogStub[Id]
-  val initState                         = BlockDag().copy(currentId = -1)
-  val ed25519                           = "ed25519"
+  implicit def blockStore      = InMemBlockStore.spoofedBracket
+  implicit def blockStoreChain = InMemBlockStore.fromIdToT[StateWithChain](blockStore)
+  implicit val log             = new LogStub[Id]
+  val initState                = BlockDag().copy(currentId = -1)
+  val ed25519                  = "ed25519"
 
   override def beforeEach(): Unit = {
     log.reset()
     timeEff.reset()
   }
 
-  def createChain[F[_]: Monad: BlockDagState: Time](
+  def createChain[F[_]: Monad: BlockDagState: Time: BlockStore](
       length: Int,
       bonds: Seq[Bond] = Seq.empty[Bond]): F[BlockMessage] =
     (0 until length).foldLeft(createBlock[F](Seq.empty, bonds = bonds)) {
@@ -57,7 +58,7 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
         } yield bnext
     }
 
-  def createChainWithRoundRobinValidators[F[_]: Monad: BlockDagState: Time](
+  def createChainWithRoundRobinValidators[F[_]: Monad: BlockDagState: Time: BlockStore](
       length: Int,
       validatorLength: Int): F[BlockMessage] = {
     val validatorRoundRobinCycle = Stream.continually(0 until validatorLength).flatten
@@ -250,9 +251,10 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
     def latestMessages(messages: Seq[BlockMessage]): Map[Validator, BlockHash] =
       messages.map(b => b.sender -> b.blockHash).toMap
 
-    def createValidatorBlock[F[_]: Monad: BlockDagState: Time](parents: Seq[BlockMessage],
-                                                               justifications: Seq[BlockMessage],
-                                                               validator: Int): F[BlockMessage] =
+    def createValidatorBlock[F[_]: Monad: BlockDagState: Time: BlockStore](
+        parents: Seq[BlockMessage],
+        justifications: Seq[BlockMessage],
+        validator: Int): F[BlockMessage] =
       createBlock[F](
         parents.map(_.blockHash),
         creator = validators(validator),
@@ -314,9 +316,10 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
     def latestMessages(messages: Seq[BlockMessage]): Map[Validator, BlockHash] =
       messages.map(b => b.sender -> b.blockHash).toMap
 
-    def createValidatorBlock[F[_]: Monad: BlockDagState: Time](parents: Seq[BlockMessage],
-                                                               justifications: Seq[BlockMessage],
-                                                               validator: Int): F[BlockMessage] =
+    def createValidatorBlock[F[_]: Monad: BlockDagState: Time: BlockStore](
+        parents: Seq[BlockMessage],
+        justifications: Seq[BlockMessage],
+        validator: Int): F[BlockMessage] =
       createBlock[F](
         parents.map(_.blockHash),
         creator = validators(validator),
@@ -325,7 +328,7 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
         justifications = latestMessages(justifications)
       )
 
-    def createChainWithValidators[F[_]: Monad: BlockDagState: Time]: F[BlockMessage] =
+    def createChainWithValidators[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         b0 <- createBlock[F](Seq.empty, bonds = bonds)
         b1 <- createValidatorBlock[F](Seq(b0), Seq(b0, b0), 0)

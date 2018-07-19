@@ -2,10 +2,12 @@ package coop.rchain.blockstorage
 
 import cats.effect.{Bracket, ExitCase}
 import cats._
+import cats.arrow.FunctionK
 import cats.effect.{Bracket, ExitCase}
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.protocol.BlockMessage
 import coop.rchain.shared.SyncVarOps
+
 import scala.language.higherKinds
 import scala.concurrent.SyncVar
 import scala.language.higherKinds
@@ -53,6 +55,11 @@ object InMemBlockStore {
       implicit
       bracketF: Bracket[F, Exception]): BlockStore[F] =
     new InMemBlockStore()(bracketF)
+
+  def spoofedBracket: BlockStore[Id] =
+    create(bracketId)
+
+  def fromIdToT[T[_]](bs: BlockStore[Id]): BlockStore[T] = ???
 
   def bracketId: Bracket[Id, Exception] =
     new Bracket[Id, Exception] {

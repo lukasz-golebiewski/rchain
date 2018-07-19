@@ -37,14 +37,15 @@ import scala.collection.immutable.HashMap
 import scala.concurrent.SyncVar
 
 class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
-  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  val initState                         = BlockDag().copy(currentId = -1)
-  val storageSize                       = 1024L * 1024
-  val storageDirectory                  = Files.createTempDirectory("casper-interp-util-test")
-  val activeRuntime                     = Runtime.create(storageDirectory, storageSize)
-  val runtimeManager                    = RuntimeManager.fromRuntime(activeRuntime)
-  val emptyStateHash                    = runtimeManager.emptyStateHash
-  val knownStateHashes                  = Set[StateHash](emptyStateHash)
+  implicit def blockStore      = InMemBlockStore.spoofedBracket
+  implicit def blockStoreChain = InMemBlockStore.fromIdToT[StateWithChain](blockStore)
+  val initState                = BlockDag().copy(currentId = -1)
+  val storageSize              = 1024L * 1024
+  val storageDirectory         = Files.createTempDirectory("casper-interp-util-test")
+  val activeRuntime            = Runtime.create(storageDirectory, storageSize)
+  val runtimeManager           = RuntimeManager.fromRuntime(activeRuntime)
+  val emptyStateHash           = runtimeManager.emptyStateHash
+  val knownStateHashes         = Set[StateHash](emptyStateHash)
 
   private def computeBlockCheckpoint(
       b: BlockMessage,
@@ -58,6 +59,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
       InterpreterUtil.computeBlockCheckpointFromDeploys(b,
                                                         genesis,
                                                         dag,
+                                                        BlockStore[Id].asMap(),
                                                         defaultStateHash,
                                                         knownStateHashes,
                                                         computeState)
@@ -163,7 +165,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
     val updatedBlockPostState = b.body.get.postState.get.withTuplespace(postGenStateHash)
     val updatedBlockBody      = b.body.get.withPostState(updatedBlockPostState)
     val updatedBlock          = b.withBody(updatedBlockBody)
-    chain.blockLookup.put(b.blockHash, updatedBlock)
+    BlockStore[Id].put(b.blockHash, updatedBlock)
     chain.copy(idToBlocks = chain.idToBlocks.updated(id, updatedBlock))
   }
 
@@ -253,6 +255,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
                                deploys,
                                BlockMessage(),
                                initState,
+                               BlockStore[Id].asMap(),
                                emptyStateHash,
                                knownStateHashes,
                                runtimeManager.computeState)
@@ -268,7 +271,13 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
     val block = chain.idToBlocks(0)
 
     val (stateHash, _) =
-      validateBlockCheckpoint(block, block, chain, emptyStateHash, knownStateHashes, runtimeManager)
+      validateBlockCheckpoint(block,
+                              block,
+                              chain,
+                              BlockStore[Id].asMap(),
+                              emptyStateHash,
+                              knownStateHashes,
+                              runtimeManager)
 
     stateHash should be(None)
   }
@@ -290,6 +299,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
                                deploys,
                                BlockMessage(),
                                initState,
+                               BlockStore[Id].asMap(),
                                emptyStateHash,
                                knownStateHashes,
                                runtimeManager.computeState)
@@ -304,7 +314,13 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
     val block = chain.idToBlocks(0)
 
     val (tsHash, _) =
-      validateBlockCheckpoint(block, block, chain, emptyStateHash, knownStateHashes, runtimeManager)
+      validateBlockCheckpoint(block,
+                              block,
+                              chain,
+                              BlockStore[Id].asMap(),
+                              emptyStateHash,
+                              knownStateHashes,
+                              runtimeManager)
 
     tsHash should be(Some(computedTsHash))
   }
@@ -340,6 +356,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
                                deploys,
                                BlockMessage(),
                                initState,
+                               BlockStore[Id].asMap(),
                                emptyStateHash,
                                knownStateHashes,
                                runtimeManager.computeState)
@@ -354,7 +371,13 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
     val block = chain.idToBlocks(0)
 
     val (tsHash, _) =
-      validateBlockCheckpoint(block, block, chain, emptyStateHash, knownStateHashes, runtimeManager)
+      validateBlockCheckpoint(block,
+                              block,
+                              chain,
+                              BlockStore[Id].asMap(),
+                              emptyStateHash,
+                              knownStateHashes,
+                              runtimeManager)
 
     tsHash should be(Some(computedTsHash))
   }
@@ -394,6 +417,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
                                deploys,
                                BlockMessage(),
                                initState,
+                               BlockStore[Id].asMap(),
                                emptyStateHash,
                                knownStateHashes,
                                runtimeManager.computeState)
@@ -408,7 +432,13 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
     val block = chain.idToBlocks(0)
 
     val (tsHash, _) =
-      validateBlockCheckpoint(block, block, chain, emptyStateHash, knownStateHashes, runtimeManager)
+      validateBlockCheckpoint(block,
+                              block,
+                              chain,
+                              BlockStore[Id].asMap(),
+                              emptyStateHash,
+                              knownStateHashes,
+                              runtimeManager)
 
     tsHash should be(Some(computedTsHash))
   }
@@ -445,6 +475,7 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
                                deploys,
                                BlockMessage(),
                                initState,
+                               BlockStore[Id].asMap(),
                                emptyStateHash,
                                knownStateHashes,
                                runtimeManager.computeState)
@@ -459,7 +490,13 @@ class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
     val block = chain.idToBlocks(0)
 
     val (tsHash, _) =
-      validateBlockCheckpoint(block, block, chain, emptyStateHash, knownStateHashes, runtimeManager)
+      validateBlockCheckpoint(block,
+                              block,
+                              chain,
+                              BlockStore[Id].asMap(),
+                              emptyStateHash,
+                              knownStateHashes,
+                              runtimeManager)
 
     tsHash should be(Some(computedTsHash))
   }

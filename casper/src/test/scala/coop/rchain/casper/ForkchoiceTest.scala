@@ -26,8 +26,7 @@ import monix.execution.Scheduler.Implicits.global
 import scala.collection.immutable.HashMap
 
 class ForkchoiceTest extends FlatSpec with Matchers with BlockGenerator {
-  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  val initState                         = BlockDag()
+  val initState = BlockDag()
 
   // See https://docs.google.com/presentation/d/1znz01SF1ljriPzbMoFV0J127ryPglUYLFyhvsb-ftQk/edit?usp=sharing slide 29 for diagram
   "Estimator on Simple DAG" should "return the appropriate score map and forkchoice" in {
@@ -69,7 +68,8 @@ class ForkchoiceTest extends FlatSpec with Matchers with BlockGenerator {
                              HashMap(v1 -> b7.blockHash, v2 -> b4.blockHash))
       } yield b8
 
-    implicit val blockStore: BlockStore[Id] = InMemBlockStore.spoofedBracket
+    implicit def blockStore      = InMemBlockStore.spoofedBracket
+    implicit def blockStoreChain = InMemBlockStore.fromIdToT[StateWithChain](blockStore)
 
     val chain: BlockDag = createChain[StateWithChain].runS(initState)
 
@@ -79,7 +79,8 @@ class ForkchoiceTest extends FlatSpec with Matchers with BlockGenerator {
 
     val latestBlocks = HashMap[Validator, BlockHash](v1 -> b8.blockHash, v2 -> b6.blockHash)
 
-    val forkchoice = Estimator.tips(chain.copy(latestMessages = latestBlocks), genesis)
+    val forkchoice =
+      Estimator.tips(chain.copy(latestMessages = latestBlocks), blockStore.asMap(), genesis)
     forkchoice.head should be(b6)
     forkchoice(1) should be(b8)
   }
@@ -97,7 +98,7 @@ class ForkchoiceTest extends FlatSpec with Matchers with BlockGenerator {
       for {
         genesis <- createBlock[F](Seq(), ByteString.EMPTY, bonds)
         b2 <- createBlock[F](
-               Seq(genesis.blockHash),ű
+               Seq(genesis.blockHash),
                v2,
                bonds,
                HashMap(v1 -> genesis.blockHash, v2 -> genesis.blockHash, v3 -> genesis.blockHash))
@@ -130,8 +131,9 @@ class ForkchoiceTest extends FlatSpec with Matchers with BlockGenerator {
                              HashMap(v1 -> b6.blockHash, v2 -> b5.blockHash, v3 -> b4.blockHash))
       } yield b8
 
-    implicit def blockStore = InMemBlockStore.spoofedBracket[StateWithChain]
-    val chain: BlockDag     = createChain[StateWithChain].runS(initState)
+    implicit def blockStore      = InMemBlockStore.spoofedBracket
+    implicit def blockStoreChain = InMemBlockStore.fromIdToT[StateWithChain](blockStore)
+    val chain: BlockDag          = createChain[StateWithChain].runS(initState)
 
     val genesis = chain.idToBlocks(1)
     val b6      = chain.idToBlocks(6)
@@ -141,7 +143,8 @@ class ForkchoiceTest extends FlatSpec with Matchers with BlockGenerator {
     val latestBlocks =
       HashMap[Validator, BlockHash](v1 -> b6.blockHash, v2 -> b8.blockHash, v3 -> b7.blockHash)
 
-    val forkchoice = Estimator.tips(chain.copy(latestMessages = latestBlocks), genesis)
+    val forkchoice =
+      Estimator.tips(chain.copy(latestMessages = latestBlocks), blockStore.asMap(), genesis)
     forkchoice.head should be(b8)
     forkchoice(1) should be(b7)
   }

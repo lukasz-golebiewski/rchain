@@ -23,8 +23,6 @@ trait BlockStore[F[_]] {
 
   def contains(blockHash: BlockHash): F[Boolean] = get(blockHash).map(_.isDefined)
 
-  def getAll(): F[Seq[(BlockHash, BlockMessage)]]
-
   def asMap(): F[Map[BlockHash, BlockMessage]]
 }
 

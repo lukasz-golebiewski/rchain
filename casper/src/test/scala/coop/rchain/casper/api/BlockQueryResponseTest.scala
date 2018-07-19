@@ -19,7 +19,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import scala.collection.immutable.{HashMap, HashSet}
 
 class BlockQueryResponseTest extends FlatSpec with Matchers {
-  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
+  implicit def blockStore = InMemBlockStore.spoofedBracket
 
   val secondBlockQuery = "1234"
   val badTestHashQuery = "No such a hash"

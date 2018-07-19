@@ -2,11 +2,12 @@ package coop.rchain.casper.helper
 
 import cats._
 import cats.data.StateT
+import cats.effect.{Bracket, ExitCase}
 import cats.implicits._
 import cats.mtl.MonadState
 import coop.rchain.catscontrib._
 import com.google.protobuf.ByteString
-import coop.rchain.blockstorage.BlockStore
+import coop.rchain.blockstorage.{BlockStore, InMemBlockStore}
 import coop.rchain.casper.BlockDag
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.protocol._
@@ -25,6 +26,29 @@ object BlockGenerator {
 
   type BlockDagState[F[_]] = MonadState[F, BlockDag]
   def blockDagState[F[_]: Monad: BlockDagState]: BlockDagState[F] = MonadState[F, BlockDag]
+
+  def storeForStateWithChain(idBs: BlockStore[Id]): BlockStore[StateWithChain] = {
+    implicit val bracket: Bracket[StateWithChain, Exception] =
+      new Bracket[StateWithChain, Exception] {
+        override def bracketCase[A, B](acquire: StateWithChain[A])(use: A => StateWithChain[B])(
+            release: (A, ExitCase[Exception]) => StateWithChain[Unit]): StateWithChain[B] = ???
+
+        override def flatMap[A, B](fa: StateWithChain[A])(
+            f: A => StateWithChain[B]): StateWithChain[B] = ???
+
+        override def tailRecM[A, B](a: A)(f: A => StateWithChain[Either[A, B]]): StateWithChain[B] =
+          ???
+
+        override def raiseError[A](e: Exception): StateWithChain[A] = ???
+
+        override def handleErrorWith[A](fa: StateWithChain[A])(
+            f: Exception => StateWithChain[A]): StateWithChain[A] = ???
+
+        override def pure[A](x: A): StateWithChain[A] = ???
+      }
+
+    InMemBlockStore.create[StateWithChain]
+  }
 }
 
 trait BlockGenerator {
