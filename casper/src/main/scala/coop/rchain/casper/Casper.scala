@@ -66,30 +66,9 @@ object MultiParentCasper extends MultiParentCasperInstances {
   def apply[F[_]](implicit instance: MultiParentCasper[F]): MultiParentCasper[F] = instance
 }
 
-object MultiParentCasperInstances {
-  type InMemMonadState[F[_]] = MonadState[F, Map[BlockHash, BlockMessage]]
-  def state = new MonadState[Id, Map[BlockHash, BlockMessage]] {
-    val monad: Monad[Id] = implicitly[Monad[Id]]
-
-    var map: Map[BlockHash, BlockMessage] = Map.empty
-
-    def get: Id[Map[BlockHash, BlockMessage]] = monad.pure(map)
-
-    def set(s: Map[BlockHash, BlockMessage]): Id[Unit] = ???
-
-    def inspect[A](f: Map[BlockHash, BlockMessage] => A): Id[A] = ???
-
-    def modify(f: Map[BlockHash, BlockMessage] => Map[BlockHash, BlockMessage]): Id[Unit] = {
-      map = f(map)
-      monad.pure(())
-    }
-  }
-}
-
 sealed abstract class MultiParentCasperInstances {
 
-  implicit def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
-  private implicit val logSource: LogSource      = LogSource(this.getClass)
+  private implicit val logSource: LogSource = LogSource(this.getClass)
 
   def noOpsCasper[F[_]: Applicative]: MultiParentCasper[F] =
     new MultiParentCasper[F] {

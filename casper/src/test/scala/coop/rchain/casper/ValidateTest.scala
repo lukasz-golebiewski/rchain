@@ -392,16 +392,14 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   "Bonds cache validation" should "succeed on a valid block and fail on modified bonds" in {
-    implicit val blockStore      = InMemBlockStore.inMemInstanceId
-    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
-    val (_, validators)          = (1 to 4).map(_ => Ed25519.newKeyPair).unzip
-    val bonds                    = validators.zipWithIndex.map { case (v, i) => v -> (2 * i + 1) }.toMap
-    val initial                  = Genesis.withoutContracts(bonds = bonds, version = 0L, timestamp = 0L)
-    val storageDirectory         = Files.createTempDirectory(s"hash-set-casper-test-genesis")
-    val storageSize: Long        = 1024L * 1024
-    val activeRuntime            = Runtime.create(storageDirectory, storageSize)
-    val runtimeManager           = RuntimeManager.fromRuntime(activeRuntime)
-    val emptyStateHash           = runtimeManager.emptyStateHash
+    val (_, validators)   = (1 to 4).map(_ => Ed25519.newKeyPair).unzip
+    val bonds             = validators.zipWithIndex.map { case (v, i) => v -> (2 * i + 1) }.toMap
+    val initial           = Genesis.withoutContracts(bonds = bonds, version = 0L, timestamp = 0L)
+    val storageDirectory  = Files.createTempDirectory(s"hash-set-casper-test-genesis")
+    val storageSize: Long = 1024L * 1024
+    val activeRuntime     = Runtime.create(storageDirectory, storageSize)
+    val runtimeManager    = RuntimeManager.fromRuntime(activeRuntime)
+    val emptyStateHash    = runtimeManager.emptyStateHash
 
     val proofOfStakeValidators = bonds.map(bond => ProofOfStakeValidator(bond._1, bond._2)).toSeq
     val proofOfStakeStubPar    = new ProofOfStake(proofOfStakeValidators).term
