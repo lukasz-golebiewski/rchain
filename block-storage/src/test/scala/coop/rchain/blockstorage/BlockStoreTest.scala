@@ -74,34 +74,7 @@ trait BlockStoreTest
 class InMemBlockStoreTest extends BlockStoreTest {
   override def withStore[R](f: BlockStore[Id] => R): R = {
 
-    implicit val bracket: Bracket[Id, Exception] =
-      new Bracket[Id, Exception] {
-        def pure[A](x: A): cats.Id[A] = implicitly[Applicative[Id]].pure(x)
-
-        // Members declared in cats.ApplicativeError
-        def handleErrorWith[A](fa: cats.Id[A])(f: Exception => cats.Id[A]): cats.Id[A] =
-          ??? //implicitly[ApplicativeError[Id, Exception]].handleErrorWith(fa)(f)
-
-        def raiseError[A](e: Exception): cats.Id[A] = ???
-        //implicitly[ApplicativeError[Id, Exception]].raiseError(e)
-
-        // Members declared in cats.FlatMap
-        def flatMap[A, B](fa: cats.Id[A])(f: A => cats.Id[B]): cats.Id[B] =
-          implicitly[FlatMap[Id]].flatMap(fa)(f)
-        def tailRecM[A, B](a: A)(f: A => cats.Id[Either[A, B]]): cats.Id[B] =
-          implicitly[FlatMap[Id]].tailRecM(a)(f)
-
-        def bracketCase[A, B](acquire: A)(use: A => B)(
-            release: (A, ExitCase[Exception]) => Unit): B = {
-          val state = acquire
-          try {
-            use(state)
-          } finally {
-            release(acquire, ExitCase.Completed)
-          }
-        }
-
-      }
+    implicit val bracket              = InMemBlockStore.bracketId
     implicit val metrics: Metrics[Id] = new MetricsNOP[Id]()(bracket)
 
     val store = BlockStore.createMapBased[Id]
