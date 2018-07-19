@@ -273,11 +273,7 @@ lazy val blockStorage = (project in file("block-storage"))
       lmdbjava,
       catsCore,
       catsEffect,
-      catsMtl,
-      scodecCore,
-      scodecCats,
-      scodecBits,
-      guava
+      catsMtl
     ),
     /* Publishing Settings */
     scmInfo := Some(ScmInfo(url("https://github.com/rchain/rchain"), "git@github.com:rchain/rchain.git")),
