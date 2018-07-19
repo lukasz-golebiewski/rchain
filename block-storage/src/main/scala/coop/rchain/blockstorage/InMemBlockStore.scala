@@ -1,6 +1,7 @@
 package coop.rchain.blockstorage
 
 import cats._
+import cats.implicits._
 import cats.effect.{Bracket, ExitCase}
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.protocol.BlockMessage
@@ -17,7 +18,6 @@ class InMemBlockStore[F[_]] private ()(implicit
 
   implicit val applicative: Applicative[F] = bracketF
 
-  import cats.implicits._
   protected[this] val stateRef: SyncVar[Map[BlockHash, BlockMessage]] =
     SyncVarOps.create[Map[BlockHash, BlockMessage]](Map.empty)
 
@@ -70,11 +70,8 @@ object InMemBlockStore {
       def pure[A](x: A): cats.Id[A] = implicitly[Applicative[Id]].pure(x)
 
       // Members declared in cats.ApplicativeError
-      def handleErrorWith[A](fa: cats.Id[A])(f: Exception => cats.Id[A]): cats.Id[A] =
-        ??? //implicitly[ApplicativeError[Id, Exception]].handleErrorWith(fa)(f)
-
-      def raiseError[A](e: Exception): cats.Id[A] = ???
-      //implicitly[ApplicativeError[Id, Exception]].raiseError(e)
+      def handleErrorWith[A](fa: cats.Id[A])(f: Exception => cats.Id[A]): cats.Id[A] = ???
+      def raiseError[A](e: Exception): cats.Id[A]                                    = ???
 
       // Members declared in cats.FlatMap
       def flatMap[A, B](fa: cats.Id[A])(f: A => cats.Id[B]): cats.Id[B] =
