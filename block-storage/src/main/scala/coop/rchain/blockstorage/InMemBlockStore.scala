@@ -40,12 +40,7 @@ class InMemBlockStore[F[_]] private ()(
               applicative.pure(stateRef.put(state)))
     } yield ret
 
-  //TODO kill with fire
-  def getAll(): F[Seq[(BlockHash, BlockMessage)]] =
-    bracketF.bracket(applicative.pure(stateRef.take()))(state => applicative.pure(state.toSeq))(
-      state => applicative.pure(stateRef.put(state)))
-
-  //TODO kill with fire
+  //TODO mark as deprecated and remove when casper code no longer needs it
   def asMap(): F[Map[BlockHash, BlockMessage]] =
     bracketF.bracket(applicative.pure(stateRef.take()))(state => applicative.pure(state))(state =>
       applicative.pure(stateRef.put(state)))
@@ -56,6 +51,24 @@ object InMemBlockStore {
       implicit
       bracketF: Bracket[F, Exception]): BlockStore[F] =
     new InMemBlockStore()(bracketF)
+
+  type ExceptionalBracket[F[_]] = Bracket[F, Exception]
+
+  def spoofedBracketEff[Effect[_]: ExceptionalBracket: Metrics]: BlockStore[Effect] = {
+    import java.nio.file.{Files, Path}
+    import org.lmdbjava._
+
+    val dbDir: Path   = Files.createTempDirectory("block-store-test-")
+    val mapSize: Long = 1024L * 1024L * 4096L
+    val env = Env
+      .create()
+      .setMapSize(mapSize)
+      .setMaxDbs(1)
+      .setMaxReaders(8)
+      .open(dbDir.toFile, List(EnvFlags.MDB_NOTLS): _*)
+
+    LMDBBlockStore.create[Effect](env, dbDir)
+  }
 
   def spoofedBracket: BlockStore[Id] = {
     import java.nio.file.{Files, Path}
@@ -73,8 +86,8 @@ object InMemBlockStore {
     import coop.rchain.metrics.Metrics.MetricsNOP
     implicit val metrics: Metrics[Id] = new MetricsNOP[Id]()(bracketId)
     LMDBBlockStore.create(env, dbDir)(bracketId, metrics)
-
   }
+
   def bracketId: Bracket[Id, Exception] =
     new Bracket[Id, Exception] {
       def pure[A](x: A): cats.Id[A] = implicitly[Applicative[Id]].pure(x)

@@ -64,12 +64,14 @@ class LMDBBlockStore[F[_]] private (val env: Env[ByteBuffer], path: Path, blocks
       _ <- metricsF.incrementCounter("block-store-as-map")
       ret <- bracketF.bracket(applicative.pure(env.txnRead()))(txn =>
               applicative.pure {
-                val r = blocks.iterate(txn).asScala.foldLeft(Map.empty[BlockHash, BlockMessage]) {
+                val iterator = blocks.iterate(txn)
+                val r = iterator.asScala.foldLeft(Map.empty[BlockHash, BlockMessage]) {
                   (acc: Map[BlockHash, BlockMessage], x: CursorIterator.KeyVal[ByteBuffer]) =>
                     val hash = ByteString.copyFrom(x.key())
                     val msg  = BlockMessage.parseFrom(ByteString.copyFrom(x.`val`()).newCodedInput())
                     acc.updated(hash, msg)
                 }
+                iterator.close()
                 txn.commit()
                 r
             })(txn => applicative.pure(txn.close()))
