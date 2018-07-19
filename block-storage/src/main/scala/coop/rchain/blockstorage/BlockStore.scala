@@ -41,12 +41,4 @@ object BlockStore {
   def createMapBased[F[_]](implicit
                            bracketF: Bracket[F, Exception],
                            metricsF: Metrics[F]): BlockStore[F] = InMemBlockStore.create
-
-  /** LMDB backed implementation
-    */
-  def create[F[_]](implicit
-                   applicativeF: Applicative[F],
-                   monadErrorF: BlockStoreMonadError[F],
-                   bracketF: BlockStoreBracket[F],
-                   syncF: Sync[F]): BlockStore[F] = ???
 }
