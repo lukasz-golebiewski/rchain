@@ -52,7 +52,7 @@ trait BlockStoreTest
       case (k, v) =>
         store.get(k) shouldBe Some(v)
     }
-    store.asMap() should have size items.size
+    store.asMap().size shouldEqual items.size
   }
 
   "Block Store" should "overwrite existing value" in withStore { store =>
@@ -67,7 +67,7 @@ trait BlockStoreTest
     items.foreach { case (k, _, v2) => store.put(k, v2) }
     items.foreach { case (k, _, v2) => store.get(k) shouldBe Some(v2) }
 
-    store.asMap() should have size items.size
+    store.asMap().size shouldEqual items.size
   }
 }
 
