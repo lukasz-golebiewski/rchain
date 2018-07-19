@@ -303,10 +303,6 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
     val chain = createChainWithValidators[StateWithChain].runS(initState)
     val b0    = chain.idToBlocks(0)
 
-    //    [info] Parent validation
-    //    [info] - should return true for proper justifications and false otherwise *** FAILED ***
-    //    [info]   false was not true (ValidateTest.scala:306)
-
     (0 to 6).forall(i => Validate.parents[Id](chain.idToBlocks(i), b0, chain) == Right(Valid)) should be(
       true)
     (7 to 9).exists(i => Validate.parents[Id](chain.idToBlocks(i), b0, chain) == Right(Valid)) should be(

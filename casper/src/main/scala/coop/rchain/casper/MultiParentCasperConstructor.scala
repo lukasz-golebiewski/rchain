@@ -63,8 +63,6 @@ sealed abstract class MultiParentCasperConstructorInstances {
       private val casper: Future[F[MultiParentCasper[F]]] =
         genesis.future.map(
           g =>
-            // TODO genesis needs to be in BlockStore
-            // post genesis hash?
             MultiParentCasper.hashSetCasper[F](
               runtimeManager,
               validatorId,

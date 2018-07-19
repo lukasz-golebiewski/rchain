@@ -121,7 +121,6 @@ sealed abstract class SafetyOracleInstances {
       // TODO: Potentially replace with isInBlockDAG
       def filterChildren(candidate: BlockMessage,
                          internalMap: Map[BlockHash, BlockMessage]): List[BlockMessage] =
-        //TODO API needs expansion
         internalMap.values.filter { potentialChild =>
           isInMainChain(internalMap, candidate, potentialChild)
         }.toList

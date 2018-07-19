@@ -615,11 +615,7 @@ sealed abstract class MultiParentCasperInstances {
           _ <- findAddedBlockMessages(validAttempts) match {
                 case Nil => ().pure[F]
                 case addedBlocks =>
-                  Capture[F].capture {
-                    addedBlocks.map {
-                      blockBuffer -= _
-                    }
-                  } *> reAttemptBuffer
+                  Capture[F].capture { addedBlocks.map { blockBuffer -= _ } } *> reAttemptBuffer
               }
         } yield ()
       }
