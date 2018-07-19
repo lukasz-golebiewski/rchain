@@ -156,7 +156,7 @@ class GenesisTest extends FlatSpec with Matchers with BeforeAndAfterEach {
         genesis,
         genesis,
         blockDag,
-        blockStore.asMap(),
+        BlockStore[Id].asMap(),
         emptyStateHash,
         Set[ByteString](emptyStateHash),
         runtimeManager

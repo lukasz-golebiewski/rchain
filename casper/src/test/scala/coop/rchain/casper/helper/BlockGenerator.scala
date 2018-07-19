@@ -2,16 +2,15 @@ package coop.rchain.casper.helper
 
 import cats._
 import cats.data.StateT
-import cats.effect.{Bracket, ExitCase}
 import cats.implicits._
 import cats.mtl.MonadState
-import coop.rchain.catscontrib._
 import com.google.protobuf.ByteString
-import coop.rchain.blockstorage.{BlockStore, InMemBlockStore}
+import coop.rchain.blockstorage.BlockStore
 import coop.rchain.casper.BlockDag
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.protocol._
 import coop.rchain.casper.util.ProtoUtil
+import coop.rchain.catscontrib._
 import coop.rchain.crypto.hash.Blake2b256
 import coop.rchain.p2p.EffectsTestInstances.LogicalTime
 import coop.rchain.shared.Time
@@ -27,28 +26,25 @@ object BlockGenerator {
   type BlockDagState[F[_]] = MonadState[F, BlockDag]
   def blockDagState[F[_]: Monad: BlockDagState]: BlockDagState[F] = MonadState[F, BlockDag]
 
-  def storeForStateWithChain(idBs: BlockStore[Id]): BlockStore[StateWithChain] = {
-    implicit val bracket: Bracket[StateWithChain, Exception] =
-      new Bracket[StateWithChain, Exception] {
-        override def bracketCase[A, B](acquire: StateWithChain[A])(use: A => StateWithChain[B])(
-            release: (A, ExitCase[Exception]) => StateWithChain[Unit]): StateWithChain[B] = ???
+  def storeForStateWithChain[F[_]: Monad](idBs: BlockStore[Id]): BlockStore[F] =
+    new BlockStore[F] {
+      override implicit val applicative: Applicative[F] =
+        new Applicative[F] {
+          override def pure[A](x: A): F[A] = Monad[F].pure(x)
 
-        override def flatMap[A, B](fa: StateWithChain[A])(
-            f: A => StateWithChain[B]): StateWithChain[B] = ???
+          override def ap[A, B](ff: F[A => B])(fa: F[A]): F[B] =
+            fa.flatMap(a => ff.map(f => f(a)))
+        }
 
-        override def tailRecM[A, B](a: A)(f: A => StateWithChain[Either[A, B]]): StateWithChain[B] =
-          ???
+      override def put(blockHash: BlockHash, blockMessage: BlockMessage): F[Unit] =
+        applicative.pure(idBs.put(blockHash, blockMessage))
 
-        override def raiseError[A](e: Exception): StateWithChain[A] = ???
+      override def get(blockHash: BlockHash): F[Option[BlockMessage]] =
+        applicative.pure(idBs.get(blockHash))
 
-        override def handleErrorWith[A](fa: StateWithChain[A])(
-            f: Exception => StateWithChain[A]): StateWithChain[A] = ???
-
-        override def pure[A](x: A): StateWithChain[A] = ???
-      }
-
-    InMemBlockStore.create[StateWithChain]
-  }
+      override def asMap(): F[Map[BlockHash, BlockMessage]] =
+        applicative.pure(idBs.asMap())
+    }
 }
 
 trait BlockGenerator {

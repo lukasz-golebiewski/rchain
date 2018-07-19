@@ -17,8 +17,8 @@ import coop.rchain.casper.helper.BlockGenerator._
 import coop.rchain.shared.Time
 
 class DagOperationsTest extends FlatSpec with Matchers with BlockGenerator {
-  implicit def blockStore      = InMemBlockStore.spoofedBracket
-  implicit def blockStoreChain = InMemBlockStore.fromIdToT[StateWithChain](blockStore)
+  implicit val blockStore      = InMemBlockStore.spoofedBracket
+  implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
   val initState                = BlockDag().copy(currentId = -1)
 
   "Greatest common ancestor" should "be computed properly" in {

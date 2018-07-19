@@ -36,11 +36,9 @@ import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 import scala.collection.immutable.HashMap
 
 class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with BlockGenerator {
-  implicit def blockStore      = InMemBlockStore.spoofedBracket
-  implicit def blockStoreChain = InMemBlockStore.fromIdToT[StateWithChain](blockStore)
-  implicit val log             = new LogStub[Id]
-  val initState                = BlockDag().copy(currentId = -1)
-  val ed25519                  = "ed25519"
+  implicit val log = new LogStub[Id]
+  val initState    = BlockDag().copy(currentId = -1)
+  val ed25519      = "ed25519"
 
   override def beforeEach(): Unit = {
     log.reset()
@@ -100,11 +98,13 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   "Block signature validation" should "return false on unknown algorithms" in {
-    val chain            = createChain[StateWithChain](2).runS(initState)
-    val unknownAlgorithm = "unknownAlgorithm"
-    val rsa              = "RSA"
-    val block0           = chain.idToBlocks(0).withSigAlgorithm(unknownAlgorithm)
-    val block1           = chain.idToBlocks(1).withSigAlgorithm(rsa)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val chain                    = createChain[StateWithChain](2).runS(initState)
+    val unknownAlgorithm         = "unknownAlgorithm"
+    val rsa                      = "RSA"
+    val block0                   = chain.idToBlocks(0).withSigAlgorithm(unknownAlgorithm)
+    val block1                   = chain.idToBlocks(1).withSigAlgorithm(rsa)
 
     Validate.blockSignature[Id](block0) should be(false)
     log.warns.last.contains(s"signature algorithm $unknownAlgorithm is unsupported") should be(true)
@@ -114,18 +114,19 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   it should "return false on invalid ed25519 signatures" in {
-
-    implicit val chain   = createChain[StateWithChain](6).runS(initState)
-    implicit val (sk, _) = Ed25519.newKeyPair
-    val (_, wrongPk)     = Ed25519.newKeyPair
-    val empty            = ByteString.EMPTY
-    val invalidKey       = ByteString.copyFrom(Base16.decode("abcdef1234567890"))
-    val block0           = signedBlock(0).withSender(empty)
-    val block1           = signedBlock(1).withSender(invalidKey)
-    val block2           = signedBlock(2).withSender(ByteString.copyFrom(wrongPk))
-    val block3           = signedBlock(3).withSig(empty)
-    val block4           = signedBlock(4).withSig(invalidKey)
-    val block5           = signedBlock(5).withSig(block0.sig) //wrong sig
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    implicit val chain           = createChain[StateWithChain](6).runS(initState)
+    implicit val (sk, _)         = Ed25519.newKeyPair
+    val (_, wrongPk)             = Ed25519.newKeyPair
+    val empty                    = ByteString.EMPTY
+    val invalidKey               = ByteString.copyFrom(Base16.decode("abcdef1234567890"))
+    val block0                   = signedBlock(0).withSender(empty)
+    val block1                   = signedBlock(1).withSender(invalidKey)
+    val block2                   = signedBlock(2).withSender(ByteString.copyFrom(wrongPk))
+    val block3                   = signedBlock(3).withSig(empty)
+    val block4                   = signedBlock(4).withSig(invalidKey)
+    val block5                   = signedBlock(5).withSig(block0.sig) //wrong sig
 
     val blocks = Vector(block0, block1, block2, block3, block4, block5)
 
@@ -135,17 +136,21 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   it should "return true on valid ed25519 signatures" in {
-    val n                = 6
-    implicit val chain   = createChain[StateWithChain](n).runS(initState)
-    implicit val (sk, _) = Ed25519.newKeyPair
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val n                        = 6
+    implicit val chain           = createChain[StateWithChain](n).runS(initState)
+    implicit val (sk, _)         = Ed25519.newKeyPair
 
     (0 until n).forall(i => Validate.blockSignature[Id](signedBlock(i))) should be(true)
     log.warns should be(Nil)
   }
 
   "Timestamp validation" should "not accept blocks with future time" in {
-    val chain = createChain[StateWithChain](1).runS(initState)
-    val block = chain.idToBlocks(0)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val chain                    = createChain[StateWithChain](1).runS(initState)
+    val block                    = chain.idToBlocks(0)
 
     val modifiedTimestampHeader = block.header.get.withTimestamp(99999999)
     Validate.timestamp[Id](block.withHeader(modifiedTimestampHeader), chain) should be(
@@ -157,8 +162,10 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   it should "not accept blocks that were published before parent time" in {
-    val chain = createChain[StateWithChain](2).runS(initState)
-    val block = chain.idToBlocks(1)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val chain                    = createChain[StateWithChain](2).runS(initState)
+    val block                    = chain.idToBlocks(1)
 
     val modifiedTimestampHeader = block.header.get.withTimestamp(-1)
     Validate.timestamp[Id](block.withHeader(modifiedTimestampHeader), chain) should be(
@@ -169,8 +176,10 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   "Block number validation" should "only accept 0 as the number for a block with no parents" in {
-    val chain = createChain[StateWithChain](1).runS(initState)
-    val block = chain.idToBlocks(0)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val chain                    = createChain[StateWithChain](1).runS(initState)
+    val block                    = chain.idToBlocks(0)
 
     Validate.blockNumber[Id](block.withBlockNumber(1), chain) should be(Left(InvalidBlockNumber))
     Validate.blockNumber[Id](block, chain) should be(Right(Valid))
@@ -179,8 +188,10 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   it should "return false for non-sequential numbering" in {
-    val chain = createChain[StateWithChain](2).runS(initState)
-    val block = chain.idToBlocks(1)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val chain                    = createChain[StateWithChain](2).runS(initState)
+    val block                    = chain.idToBlocks(1)
 
     Validate.blockNumber[Id](block.withBlockNumber(17), chain) should be(Left(InvalidBlockNumber))
     Validate.blockNumber[Id](block, chain) should be(Right(Valid))
@@ -189,8 +200,10 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   it should "return true for sequential numbering" in {
-    val n     = 6
-    val chain = createChain[StateWithChain](n).runS(initState)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val n                        = 6
+    val chain                    = createChain[StateWithChain](n).runS(initState)
 
     (0 until n).forall(i => Validate.blockNumber[Id](chain.idToBlocks(i), chain) == Right(Valid)) should be(
       true)
@@ -198,8 +211,10 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   "Sequence number validation" should "only accept 0 as the number for a block with no parents" in {
-    val chain = createChain[StateWithChain](1).runS(initState)
-    val block = chain.idToBlocks(0)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val chain                    = createChain[StateWithChain](1).runS(initState)
+    val block                    = chain.idToBlocks(0)
 
     Validate.sequenceNumber[Id](block.withSeqNum(1), chain) should be(Left(InvalidSequenceNumber))
     Validate.sequenceNumber[Id](block, chain) should be(Right(Valid))
@@ -207,16 +222,20 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   it should "return false for non-sequential numbering" in {
-    val chain = createChain[StateWithChain](2).runS(initState)
-    val block = chain.idToBlocks(1)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val chain                    = createChain[StateWithChain](2).runS(initState)
+    val block                    = chain.idToBlocks(1)
 
     Validate.sequenceNumber[Id](block.withSeqNum(1), chain) should be(Left(InvalidSequenceNumber))
     log.warns.size should be(1)
   }
 
   it should "return true for sequential numbering" in {
-    val n              = 20
-    val validatorCount = 3
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val n                        = 20
+    val validatorCount           = 3
     val chain =
       createChainWithRoundRobinValidators[StateWithChain](n, validatorCount).runS(initState)
 
@@ -226,12 +245,14 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   "Sender validation" should "return true for genesis and blocks from bonded validators and false otherwise" in {
-    val validator    = ByteString.copyFromUtf8("Validator")
-    val impostor     = ByteString.copyFromUtf8("Impostor")
-    val chain        = createChain[StateWithChain](3, List(Bond(validator, 1))).runS(initState)
-    val genesis      = chain.idToBlocks(0)
-    val validBlock   = chain.idToBlocks(1).withSender(validator)
-    val invalidBlock = chain.idToBlocks(2).withSender(impostor)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val validator                = ByteString.copyFromUtf8("Validator")
+    val impostor                 = ByteString.copyFromUtf8("Impostor")
+    val chain                    = createChain[StateWithChain](3, List(Bond(validator, 1))).runS(initState)
+    val genesis                  = chain.idToBlocks(0)
+    val validBlock               = chain.idToBlocks(1).withSender(validator)
+    val invalidBlock             = chain.idToBlocks(2).withSender(impostor)
 
     Validate.blockSender[Id](genesis, genesis, chain) should be(true)
     Validate.blockSender[Id](validBlock, genesis, chain) should be(true)
@@ -239,6 +260,8 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   "Parent validation" should "return true for proper justifications and false otherwise" in {
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
     val validators = Vector(
       ByteString.copyFromUtf8("Validator 1"),
       ByteString.copyFromUtf8("Validator 2"),
@@ -280,6 +303,10 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
     val chain = createChainWithValidators[StateWithChain].runS(initState)
     val b0    = chain.idToBlocks(0)
 
+    //    [info] Parent validation
+    //    [info] - should return true for proper justifications and false otherwise *** FAILED ***
+    //    [info]   false was not true (ValidateTest.scala:306)
+
     (0 to 6).forall(i => Validate.parents[Id](chain.idToBlocks(i), b0, chain) == Right(Valid)) should be(
       true)
     (7 to 9).exists(i => Validate.parents[Id](chain.idToBlocks(i), b0, chain) == Right(Valid)) should be(
@@ -295,8 +322,10 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
 
   // Creates a block with an invalid block number and sequence number
   "Block summary validation" should "short circuit after first invalidity" in {
-    val chain = createChain[StateWithChain](2).runS(initState)
-    val block = chain.idToBlocks(1)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val chain                    = createChain[StateWithChain](2).runS(initState)
+    val block                    = chain.idToBlocks(1)
 
     Validate
       .blockSummary[Id](block.withBlockNumber(17).withSeqNum(1), BlockMessage(), chain) should be(
@@ -305,6 +334,8 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   "Justification regression validation" should "return valid for proper justifications and justification regression detected otherwise" in {
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
     val validators = Vector(
       ByteString.copyFromUtf8("Validator 1"),
       ByteString.copyFromUtf8("Validator 2")
@@ -361,14 +392,16 @@ class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with B
   }
 
   "Bonds cache validation" should "succeed on a valid block and fail on modified bonds" in {
-    val (_, validators)   = (1 to 4).map(_ => Ed25519.newKeyPair).unzip
-    val bonds             = validators.zipWithIndex.map { case (v, i) => v -> (2 * i + 1) }.toMap
-    val initial           = Genesis.withoutContracts(bonds = bonds, version = 0L, timestamp = 0L)
-    val storageDirectory  = Files.createTempDirectory(s"hash-set-casper-test-genesis")
-    val storageSize: Long = 1024L * 1024
-    val activeRuntime     = Runtime.create(storageDirectory, storageSize)
-    val runtimeManager    = RuntimeManager.fromRuntime(activeRuntime)
-    val emptyStateHash    = runtimeManager.emptyStateHash
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val (_, validators)          = (1 to 4).map(_ => Ed25519.newKeyPair).unzip
+    val bonds                    = validators.zipWithIndex.map { case (v, i) => v -> (2 * i + 1) }.toMap
+    val initial                  = Genesis.withoutContracts(bonds = bonds, version = 0L, timestamp = 0L)
+    val storageDirectory         = Files.createTempDirectory(s"hash-set-casper-test-genesis")
+    val storageSize: Long        = 1024L * 1024
+    val activeRuntime            = Runtime.create(storageDirectory, storageSize)
+    val runtimeManager           = RuntimeManager.fromRuntime(activeRuntime)
+    val emptyStateHash           = runtimeManager.emptyStateHash
 
     val proofOfStakeValidators = bonds.map(bond => ProofOfStakeValidator(bond._1, bond._2)).toSeq
     val proofOfStakeStubPar    = new ProofOfStake(proofOfStakeValidators).term

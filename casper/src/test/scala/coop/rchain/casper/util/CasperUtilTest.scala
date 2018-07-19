@@ -24,11 +24,11 @@ import coop.rchain.shared.Time
 import scala.collection.immutable.{HashMap, HashSet}
 
 class CasperUtilTest extends FlatSpec with Matchers with BlockGenerator {
-  implicit def blockStore: BlockStore[Id] = InMemBlockStore.spoofedBracket
-  implicit def blockStoreChain            = InMemBlockStore.fromIdToT[StateWithChain](blockStore)
-  val initState                           = BlockDag()
+  val initState = BlockDag()
 
   "isInMainChain" should "classify appropriately" in {
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
     def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq())
@@ -47,6 +47,8 @@ class CasperUtilTest extends FlatSpec with Matchers with BlockGenerator {
   }
 
   "isInMainChain" should "classify diamond DAGs appropriately" in {
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
     def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq())
@@ -70,8 +72,10 @@ class CasperUtilTest extends FlatSpec with Matchers with BlockGenerator {
 
   // See https://docs.google.com/presentation/d/1znz01SF1ljriPzbMoFV0J127ryPglUYLFyhvsb-ftQk/edit?usp=sharing slide 29 for diagram
   "isInMainChain" should "classify complicated chains appropriately" in {
-    val v1 = ByteString.copyFromUtf8("Validator One")
-    val v2 = ByteString.copyFromUtf8("Validator Two")
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val v1                       = ByteString.copyFromUtf8("Validator One")
+    val v2                       = ByteString.copyFromUtf8("Validator Two")
     def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {
         genesis <- createBlock[F](Seq(), ByteString.EMPTY)
@@ -122,7 +126,9 @@ class CasperUtilTest extends FlatSpec with Matchers with BlockGenerator {
    *         genesis
    */
   "Blocks" should "conflict if they use the same deploys in different histories" in {
-    val deploys = (0 until 6).map(basicDeploy)
+    implicit val blockStore      = InMemBlockStore.spoofedBracket
+    implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
+    val deploys                  = (0 until 6).map(basicDeploy)
 
     def createChain[F[_]: Monad: BlockDagState: Time: BlockStore]: F[BlockMessage] =
       for {

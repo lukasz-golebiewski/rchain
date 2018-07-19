@@ -59,8 +59,6 @@ object InMemBlockStore {
   def spoofedBracket: BlockStore[Id] =
     create(bracketId)
 
-  def fromIdToT[T[_]](bs: BlockStore[Id]): BlockStore[T] = ???
-
   def bracketId: Bracket[Id, Exception] =
     new Bracket[Id, Exception] {
       def pure[A](x: A): cats.Id[A] = implicitly[Applicative[Id]].pure(x)

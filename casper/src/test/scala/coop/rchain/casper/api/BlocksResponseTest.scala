@@ -8,7 +8,7 @@ import cats.mtl.MonadState
 import cats.mtl.implicits._
 import com.google.protobuf.ByteString
 import coop.rchain.blockstorage.BlockStore.BlockHash
-import coop.rchain.blockstorage.InMemBlockStore
+import coop.rchain.blockstorage.{BlockStore, InMemBlockStore}
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.protocol._
 import coop.rchain.casper.util.rholang.RuntimeManager
@@ -23,8 +23,8 @@ import scala.collection.immutable.{HashMap, HashSet}
 
 // See [[/docs/casper/images/no_finalizable_block_mistake_with_no_disagreement_check.png]]
 class BlocksResponseTest extends FlatSpec with Matchers with BlockGenerator {
-  implicit def blockStore      = InMemBlockStore.spoofedBracket
-  implicit def blockStoreChain = InMemBlockStore.fromIdToT[StateWithChain](blockStore)
+  implicit val blockStore      = InMemBlockStore.spoofedBracket
+  implicit val blockStoreChain = storeForStateWithChain[StateWithChain](blockStore)
   val initState                = BlockDag()
 
   val v1     = ByteString.copyFromUtf8("Validator One")
@@ -83,7 +83,7 @@ class BlocksResponseTest extends FlatSpec with Matchers with BlockGenerator {
       def contains(b: BlockMessage): F[Boolean] = false.pure[F]
       def deploy(r: Deploy): F[Unit]            = ().pure[F]
       def estimator: F[IndexedSeq[BlockMessage]] =
-        Estimator.tips(chain, blockStore.asMap(), genesis).pure[F]
+        Estimator.tips(chain, BlockStore[Id].asMap(), genesis).pure[F]
       def createBlock: F[Option[BlockMessage]]                           = Applicative[F].pure[Option[BlockMessage]](None)
       def blockDag: F[BlockDag]                                          = chain.pure[F]
       def normalizedInitialFault(weights: Map[Validator, Int]): F[Float] = 0f.pure[F]
