@@ -2,7 +2,9 @@ package coop.rchain.casper
 
 import cats.{Applicative, Id, Monad}
 import cats.implicits._
+import cats.effect.Bracket
 import com.google.protobuf.ByteString
+import coop.rchain.blockstorage.InMemBlockStore
 import coop.rchain.catscontrib.TaskContrib._
 import coop.rchain.casper.genesis.Genesis
 import coop.rchain.casper.protocol._
@@ -34,8 +36,6 @@ import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.EquivocationRecord.SequenceNumber
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.util.rholang.RuntimeManager.StateHash
-import coop.rchain.metrics.Metrics
-import coop.rchain.metrics.Metrics.MetricsNOP
 import coop.rchain.rspace.{trace, Checkpoint}
 import coop.rchain.rspace.trace.{COMM, Event}
 import coop.rchain.rspace.trace.Event.codecLog
@@ -87,12 +87,10 @@ object MultiParentCasperInstances {
 
 sealed abstract class MultiParentCasperInstances {
 
-  private implicit val logSource: LogSource = LogSource(this.getClass)
+  implicit def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
+  private implicit val logSource: LogSource      = LogSource(this.getClass)
 
-  def noOpsCasper[F[_]: Applicative]: MultiParentCasper[F] = {
-    implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
-      MultiParentCasperInstances.state
-    implicit val metricsId: Metrics[Id] = new MetricsNOP()
+  def noOpsCasper[F[_]: Applicative]: MultiParentCasper[F] =
     new MultiParentCasper[F] {
       def addBlock(b: BlockMessage): F[Unit]    = ().pure[F]
       def contains(b: BlockMessage): F[Boolean] = false.pure[F]
@@ -100,11 +98,10 @@ sealed abstract class MultiParentCasperInstances {
       def estimator: F[IndexedSeq[BlockMessage]] =
         Applicative[F].pure[IndexedSeq[BlockMessage]](Vector(BlockMessage()))
       def createBlock: F[Option[BlockMessage]]                           = Applicative[F].pure[Option[BlockMessage]](None)
-      def blockDag: F[BlockDag[Id]]                                      = BlockDag[Id].pure[F]
+      def blockDag: F[BlockDag[Id]]                                      = BlockDag[Id]().pure[F]
       def normalizedInitialFault(weights: Map[Validator, Int]): F[Float] = 0f.pure[F]
       def storageContents(hash: ByteString): F[String]                   = "".pure[F]
     }
-  }
 
   def hashSetCasper[
       F[_]: Monad: Capture: NodeDiscovery: TransportLayer: Log: Time: ErrorHandler: SafetyOracle](
@@ -115,17 +112,14 @@ sealed abstract class MultiParentCasperInstances {
       type BlockHash = ByteString
       type Validator = ByteString
 
-      implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
-        MultiParentCasperInstances.state
-      implicit val metricsId: Metrics[Id] = new MetricsNOP()
-
       //TODO: Extract hardcoded version
       private val version = 0L
 
-      private val _blockDag: AtomicSyncVar[BlockDag] = new AtomicSyncVar(
-        BlockDag().copy(
-          blockLookup = HashMap[BlockHash, BlockMessage](genesis.blockHash -> genesis))
-      )
+      private val _blockDag: AtomicSyncVar[BlockDag[Id]] = {
+        val dag = BlockDag[Id]()
+        dag.blockLookup.put(genesis.blockHash, genesis)
+        new AtomicSyncVar(dag)
+      }
       private val emptyStateHash = runtimeManager.emptyStateHash
 
       private val (maybePostGenesisStateHash, _) = InterpreterUtil

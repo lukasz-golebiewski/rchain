@@ -14,13 +14,13 @@ import cats.implicits._
 import cats.mtl.implicits._
 import java.nio.file.Files
 
+import cats.effect.Bracket
 import cats.mtl.MonadState
 import coop.rchain.blockstorage.BlockStore.BlockHash
+import coop.rchain.blockstorage.InMemBlockStore
 import coop.rchain.casper.helper.BlockGenerator
 import coop.rchain.casper.helper.BlockGenerator._
 import coop.rchain.casper.util.rholang.RuntimeManager.StateHash
-import coop.rchain.metrics.Metrics
-import coop.rchain.metrics.Metrics.MetricsNOP
 import coop.rchain.rholang.collection.LinkedList
 import coop.rchain.rspace.Checkpoint
 import coop.rchain.shared.Time
@@ -36,21 +36,19 @@ import scala.collection.immutable.HashMap
 import scala.concurrent.SyncVar
 
 class InterpreterUtilTest extends FlatSpec with Matchers with BlockGenerator {
-  implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
-    MultiParentCasperInstances.state
-  implicit val metricsId: Metrics[Id] = new MetricsNOP()
-  val initState        = BlockDag().copy(currentId = -1)
-  val storageSize      = 1024L * 1024
-  val storageDirectory = Files.createTempDirectory("casper-interp-util-test")
-  val activeRuntime    = Runtime.create(storageDirectory, storageSize)
-  val runtimeManager   = RuntimeManager.fromRuntime(activeRuntime)
-  val emptyStateHash   = runtimeManager.emptyStateHash
-  val knownStateHashes = Set[StateHash](emptyStateHash)
+  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
+  val initState                         = BlockDag()(bracketId).copy(currentId = -1)
+  val storageSize                       = 1024L * 1024
+  val storageDirectory                  = Files.createTempDirectory("casper-interp-util-test")
+  val activeRuntime                     = Runtime.create(storageDirectory, storageSize)
+  val runtimeManager                    = RuntimeManager.fromRuntime(activeRuntime)
+  val emptyStateHash                    = runtimeManager.emptyStateHash
+  val knownStateHashes                  = Set[StateHash](emptyStateHash)
 
   private def computeBlockCheckpoint(
       b: BlockMessage,
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       defaultStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])

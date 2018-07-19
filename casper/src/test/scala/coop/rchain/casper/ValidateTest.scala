@@ -2,12 +2,14 @@ package coop.rchain.casper
 
 import java.nio.file.Files
 
+import cats.effect.Bracket
 import cats.{Id, Monad}
 import cats.implicits._
 import cats.mtl.MonadState
 import cats.mtl.implicits._
 import com.google.protobuf.ByteString
 import coop.rchain.blockstorage.BlockStore.BlockHash
+import coop.rchain.blockstorage.InMemBlockStore
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.genesis.Genesis
 import coop.rchain.casper.genesis.contracts.{ProofOfStake, ProofOfStakeValidator, Rev}
@@ -19,8 +21,6 @@ import coop.rchain.casper.util.ProtoUtil.termDeploy
 import coop.rchain.casper.util.rholang.{InterpreterUtil, RuntimeManager}
 import coop.rchain.crypto.codec.Base16
 import coop.rchain.crypto.signatures.Ed25519
-import coop.rchain.metrics.Metrics
-import coop.rchain.metrics.Metrics.MetricsNOP
 import coop.rchain.models.Par
 import coop.rchain.p2p.EffectsTestInstances.LogStub
 import coop.rchain.rholang.collection.LinkedList
@@ -35,12 +35,10 @@ import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 import scala.collection.immutable.HashMap
 
 class ValidateTest extends FlatSpec with Matchers with BeforeAndAfterEach with BlockGenerator {
-  implicit val log = new LogStub[Id]
-  implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
-    MultiParentCasperInstances.state
-  implicit val metricsId: Metrics[Id] = new MetricsNOP()
-  val initState                       = BlockDag[Id].copy(currentId = -1)
-  val ed25519                         = "ed25519"
+  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
+  implicit val log                      = new LogStub[Id]
+  val initState                         = BlockDag[Id]()(bracketId).copy(currentId = -1)
+  val ed25519                           = "ed25519"
 
   override def beforeEach(): Unit = {
     log.reset()

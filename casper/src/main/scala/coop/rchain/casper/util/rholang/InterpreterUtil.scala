@@ -29,7 +29,7 @@ object InterpreterUtil {
   //does not match the computed hash based on the deploys
   def validateBlockCheckpoint(b: BlockMessage,
                               genesis: BlockMessage,
-                              dag: BlockDag,
+                              dag: BlockDag[Id],
                               emptyStateHash: StateHash,
                               knownStateHashes: Set[StateHash],
                               runtimeManager: RuntimeManager)(
@@ -59,7 +59,7 @@ object InterpreterUtil {
       parents: Seq[BlockMessage],
       deploys: Seq[Deploy],
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       emptyStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])
@@ -75,7 +75,7 @@ object InterpreterUtil {
   private def computeParentsPostState(
       parents: Seq[BlockMessage],
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       emptyStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])
@@ -128,7 +128,7 @@ object InterpreterUtil {
   private[casper] def computeBlockCheckpointFromDeploys(
       b: BlockMessage,
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       emptyStateHash: StateHash,
       knownStateHashes: Set[StateHash],
       computeState: (StateHash, Seq[Deploy]) => Either[Throwable, Checkpoint])

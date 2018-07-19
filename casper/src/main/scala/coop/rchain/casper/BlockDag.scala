@@ -2,6 +2,7 @@ package coop.rchain.casper
 
 import cats.mtl.MonadState
 import cats.{FlatMap, Functor}
+import cats.effect.Bracket
 import coop.rchain.blockstorage.BlockStore
 import coop.rchain.casper.BlockDag.LatestMessages
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
@@ -25,16 +26,12 @@ object BlockDag {
     def empty: LatestMessages = HashMap.empty[Validator, BlockHash]
   }
 
-  def apply[F[_]](implicit
-                  functorF: Functor[F],
-                  flatMapF: FlatMap[F],
-                  stateF: MonadState[F, Map[BlockHash, BlockMessage]],
-                  metricsF: Metrics[F]): BlockDag[F] = apply[F](BlockStore.createMapBased[F])
-
-  def apply[F[_]](store: BlockStore[F]): BlockDag[F] =
+  def apply[F[_]]()(
+      implicit
+      bracketF: Bracket[F, Exception]): BlockDag[F] =
     new BlockDag[F](
       HashMap.empty[Int, BlockMessage],
-      store,
+      BlockStore.createMapBased[F],
       HashMap.empty[BlockHash, HashSet[BlockHash]],
       LatestMessages.empty,
       HashMap.empty[Validator, LatestMessages],

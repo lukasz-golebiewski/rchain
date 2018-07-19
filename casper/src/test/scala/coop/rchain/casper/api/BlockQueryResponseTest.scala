@@ -1,10 +1,11 @@
 package coop.rchain.casper.api
 
 import cats._
+import cats.effect.Bracket
 import cats.implicits._
 import cats.mtl.MonadState
 import com.google.protobuf.ByteString
-import coop.rchain.blockstorage.BlockStore
+import coop.rchain.blockstorage.{BlockStore, InMemBlockStore}
 import coop.rchain.blockstorage.BlockStore.BlockHash
 import coop.rchain.casper.BlockDag.LatestMessages
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
@@ -12,17 +13,13 @@ import coop.rchain.casper._
 import coop.rchain.casper.protocol._
 import coop.rchain.casper.util.ProtoUtil
 import coop.rchain.casper.util.rholang.RuntimeManager
-import coop.rchain.metrics.Metrics
-import coop.rchain.metrics.Metrics.MetricsNOP
 import coop.rchain.p2p.EffectsTestInstances.LogStub
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.collection.immutable.{HashMap, HashSet}
 
 class BlockQueryResponseTest extends FlatSpec with Matchers {
-  implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
-    MultiParentCasperInstances.state
-  implicit val metricsId: Metrics[Id] = new MetricsNOP()
+  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
 
   val secondBlockQuery = "1234"
   val badTestHashQuery = "No such a hash"
@@ -68,7 +65,7 @@ class BlockQueryResponseTest extends FlatSpec with Matchers {
         Applicative[F].pure[IndexedSeq[BlockMessage]](Vector(BlockMessage()))
       def createBlock: F[Option[BlockMessage]] = Applicative[F].pure[Option[BlockMessage]](None)
       def blockDag: F[BlockDag[Id]] = {
-        val bd: BlockDag[Id] = BlockDag[Id]
+        val bd: BlockDag[Id] = BlockDag[Id]()(bracketId)
         bd.blockLookup.put(ProtoUtil.stringToByteString(genesisHashString), genesisBlock)
         bd.blockLookup.put(ProtoUtil.stringToByteString(secondHashString), secondBlock)
         bd

@@ -2,11 +2,13 @@ package coop.rchain.casper.api
 
 import cats._
 import cats.data.State
+import cats.effect.Bracket
 import cats.implicits._
 import cats.mtl.MonadState
 import cats.mtl.implicits._
 import com.google.protobuf.ByteString
 import coop.rchain.blockstorage.BlockStore.BlockHash
+import coop.rchain.blockstorage.InMemBlockStore
 import coop.rchain.casper.Estimator.{BlockHash, Validator}
 import coop.rchain.casper.protocol._
 import coop.rchain.casper.util.rholang.RuntimeManager
@@ -14,8 +16,6 @@ import coop.rchain.casper._
 import coop.rchain.casper.helper.BlockGenerator
 import coop.rchain.casper.helper.BlockGenerator._
 import coop.rchain.catscontrib.Catscontrib
-import coop.rchain.metrics.Metrics
-import coop.rchain.metrics.Metrics.MetricsNOP
 import coop.rchain.p2p.EffectsTestInstances.LogStub
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -23,10 +23,8 @@ import scala.collection.immutable.{HashMap, HashSet}
 
 // See [[/docs/casper/images/no_finalizable_block_mistake_with_no_disagreement_check.png]]
 class BlocksResponseTest extends FlatSpec with Matchers with BlockGenerator {
-  implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
-    MultiParentCasperInstances.state
-  implicit val metricsId: Metrics[Id] = new MetricsNOP()
-  val initState                       = BlockDag[Id]
+  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
+  val initState                         = BlockDag[Id]()(bracketId)
 
   val v1     = ByteString.copyFromUtf8("Validator One")
   val v2     = ByteString.copyFromUtf8("Validator Two")

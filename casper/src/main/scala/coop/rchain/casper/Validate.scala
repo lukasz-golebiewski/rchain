@@ -289,7 +289,7 @@ object Validate {
   def transactions[F[_]: Applicative: Log: Capture](
       block: BlockMessage,
       genesis: BlockMessage,
-      dag: BlockDag,
+      dag: BlockDag[Id],
       emptyStateHash: StateHash,
       runtimeManager: RuntimeManager,
       knownStateHashesContainer: AtomicSyncVar[Set[StateHash]])(

@@ -15,10 +15,10 @@ import coop.rchain.p2p.EffectsTestInstances.{LogStub, LogicalTime}
 import java.io.PrintWriter
 import java.nio.file.Files
 
+import cats.effect.Bracket
 import cats.mtl.MonadState
 import coop.rchain.blockstorage.BlockStore.BlockHash
-import coop.rchain.metrics.Metrics
-import coop.rchain.metrics.Metrics.MetricsNOP
+import coop.rchain.blockstorage.InMemBlockStore
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
@@ -26,9 +26,7 @@ import scala.collection.immutable.HashMap
 import scala.concurrent.SyncVar
 
 class GenesisTest extends FlatSpec with Matchers with BeforeAndAfterEach {
-  implicit def stateId: MonadState[Id, Map[BlockHash, BlockMessage]] =
-    MultiParentCasperInstances.state
-  implicit val metricsId: Metrics[Id] = new MetricsNOP()
+  def bracketId: Bracket[Id, Exception] = InMemBlockStore.bracketId
 
   val storageSize     = 1024L * 1024
   def storageLocation = Files.createTempDirectory(s"casper-genesis-test-runtime")
@@ -148,7 +146,7 @@ class GenesisTest extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val genesis = Genesis.fromInputFiles[Id](None, numValidators, genesisPath, None, runtimeManager)
     val blockDag = {
-      val bd: BlockDag[Id] = BlockDag[Id]
+      val bd: BlockDag[Id] = BlockDag[Id]()(bracketId)
       bd.blockLookup.put(genesis.blockHash, genesis)
       bd
     }
