@@ -9,6 +9,7 @@ import coop.rchain.catscontrib._
 import coop.rchain.rspace.history.Branch
 import coop.rchain.rspace.internal._
 import coop.rchain.rspace.trace.{Produce, _}
+import scala.util.control.NonFatal
 import scodec.Codec
 
 import scala.annotation.tailrec
@@ -39,20 +40,23 @@ class FineGrainedReplayRSpace[F[_], C, P, E, A, R, K](store: IStore[C, P, A, K],
       implicit m: Match[P, E, A, R]
   ): F[Either[E, Option[(ContResult[C, P, K], Seq[Result[R]])]]] =
     syncF.delay {
-      Kamon.withSpan(consumeSpan.start(), finishSpan = true) {
-        if (channels.length =!= patterns.length) {
-          val msg = "channels.length must equal patterns.length"
-          logger.error(msg)
-          throw new IllegalArgumentException(msg)
+      try {
+        Kamon.withSpan(consumeSpan.start(), finishSpan = true) {
+          if (channels.length =!= patterns.length) {
+            val msg = "channels.length must equal patterns.length"
+            logger.error(msg)
+            throw new IllegalArgumentException(msg)
+          }
+          val span = Kamon.currentSpan()
+          span.mark("before-consume-lock")
+          consumeLock(channels) {
+            span.mark("consume-lock-acquired")
+            lockedConsume(channels, patterns, continuation, persist)
+          }
         }
-        val span = Kamon.currentSpan()
-        span.mark("before-consume-lock")
-        consumeLock(channels) {
-          span.mark("consume-lock-acquired")
-          lockedConsume(channels, patterns, continuation, persist)
-        }
+      } catch {
+        case NonFatal(ex) => logger.error("Exception occurred during replay", ex); throw ex;
       }
-
     }
 
   private[this] def lockedConsume(
@@ -185,13 +189,17 @@ class FineGrainedReplayRSpace[F[_], C, P, E, A, R, K](store: IStore[C, P, A, K],
       implicit m: Match[P, E, A, R]
   ): F[Either[E, Option[(ContResult[C, P, K], Seq[Result[R]])]]] =
     syncF.delay {
-      Kamon.withSpan(produceSpan.start(), finishSpan = true) {
-        val span = Kamon.currentSpan()
-        span.mark("before-produce-lock")
-        produceLock(channel) {
-          span.mark("produce-lock-acquired")
-          lockedProduce(channel, data, persist)
+      try {
+        Kamon.withSpan(produceSpan.start(), finishSpan = true) {
+          val span = Kamon.currentSpan()
+          span.mark("before-produce-lock")
+          produceLock(channel) {
+            span.mark("produce-lock-acquired")
+            lockedProduce(channel, data, persist)
+          }
         }
+      } catch {
+        case NonFatal(ex) => logger.error("Exception occurred during replay", ex); throw ex;
       }
     }
   private[this] def lockedProduce(channel: C, data: A, persist: Boolean)(
@@ -373,10 +381,10 @@ class FineGrainedReplayRSpace[F[_], C, P, E, A, R, K](store: IStore[C, P, A, K],
 
   override def clear(): F[Unit] =
     for {
-    _ <- syncF.delay {
-        replayData.clear()
-      }
-    _ <- super.clear()
+      _ <- syncF.delay {
+            replayData.clear()
+          }
+      _ <- super.clear()
     } yield ()
 }
 
