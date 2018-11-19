@@ -424,7 +424,9 @@ lazy val rspace = (project in file("rspace"))
         email = "henrytill@gmail.com",
         url = url("https://www.pyrofex.net")
       )
-    )
+    ),
+    Test / parallelExecution := true,
+    Test / testForkedParallel := true
   )
   .dependsOn(shared, crypto)
 
