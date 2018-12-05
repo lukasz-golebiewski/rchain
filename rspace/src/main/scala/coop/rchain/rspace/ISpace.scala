@@ -55,7 +55,7 @@ trait ISpace[F[_], C, P, E, A, R, K] {
       continuation: K,
       persist: Boolean,
       sequenceNumber: Int = 0,
-      peek: Option[Seq[Boolean]] = None
+      peek: Map[C, Boolean] = Map.empty.withDefaultValue(false)
   )(
       implicit m: Match[P, E, A, R]
   ): F[Either[E, Option[(ContResult[C, P, K], Seq[Result[R]])]]]

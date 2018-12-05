@@ -60,8 +60,7 @@ class PeekSpec
         List(p1),
         new EntriesCaptor,
         persist = false,
-        sequenceNumber = 0,
-        None)
+        sequenceNumber = 0)
       _  = r2 shouldBe Right(None)
       r3 <- space.produceOne
     } yield r3
@@ -93,7 +92,7 @@ class PeekSpec
           new EntriesCaptor,
           persist = false,
           sequenceNumber = 0,
-          Some(Seq(true, false))
+          Map(c1 -> true, c2 -> false)
         )
       _  = r1 shouldBe Right(None)
       r2 <- space.produce(c2, bob2, persist = false)
@@ -141,7 +140,7 @@ class PeekSpec
         new EntriesCaptor,
         persist = false,
         sequenceNumber = 0,
-        Some(Seq(true)))
+        Map(c1 -> true))
     }
     def produceOne = {
       space.produce(c1, bob1, persist = false)
@@ -154,7 +153,7 @@ class PeekSpec
           new EntriesCaptor,
           persist = false,
           sequenceNumber = 0,
-          Some(Seq(true, true))
+          Map(c1 -> true, c2 -> true))
         )
     }
   }
