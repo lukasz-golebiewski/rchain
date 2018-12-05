@@ -107,6 +107,7 @@ class RSpace[F[_], C, P, E, A, R, K] private[rspace] (
                 store
                   .withTxn(store.createTxnWrite()) { txn =>
                     span.mark("before-put-continuation")
+                    // TODO: store with peek
                     store.putWaitingContinuation(
                       txn,
                       channels,
@@ -131,6 +132,7 @@ class RSpace[F[_], C, P, E, A, R, K] private[rspace] (
                   .sortBy(_.datumIndex)(Ordering[Int].reverse)
                   .foreach {
                     case DataCandidate(candidateChannel, Datum(_, persistData, _), dataIndex)
+                        // && !peek
                         if !persistData =>
                       span.mark("acquire-write-lock")
                       store.withTxn(store.createTxnWrite()) { txn =>
@@ -270,6 +272,7 @@ class RSpace[F[_], C, P, E, A, R, K] private[rspace] (
                     case DataCandidate(candidateChannel, Datum(_, persistData, _), dataIndex) =>
                       span.mark("acquire-write-lock")
                       store.withTxn(store.createTxnWrite()) { txn =>
+                        // TODO: && !wc.peek(channel))
                         if (!persistData && dataIndex >= 0) {
                           span.mark("before-remove-datum")
                           store.removeDatum(txn, Seq(candidateChannel), dataIndex)
@@ -291,6 +294,7 @@ class RSpace[F[_], C, P, E, A, R, K] private[rspace] (
                         channels,
                         patterns,
                         contSequenceNumber
+                        // TODO: wc.peek(channel)
                       ),
                       dataCandidates.map(dc => Result(dc.datum.a, dc.datum.persist))
                     )
