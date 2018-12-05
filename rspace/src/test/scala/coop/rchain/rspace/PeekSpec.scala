@@ -27,12 +27,12 @@ class PeekSpec
                new EntriesCaptor,
                persist = false,
                sequenceNumber = 0,
-               Some(Seq(true, true))
+               Map(c1 -> true, c2 -> true)
              )
       _  = r1 shouldBe Right(None)
-      r2 <- space.produce(Channel("C2"), bob2, persist = false)
+      r2 <- space.produce(c2, bob2, persist = false)
       _  = r2 shouldBe Right(None)
-      r3 <- space.produce(Channel("C1"), bob1, persist = false)
+      r3 <- space.produce(c1, bob1, persist = false)
       _ = {
         val result = r3.right.get.get._1
         result.channels shouldBe Seq(c1, c2)

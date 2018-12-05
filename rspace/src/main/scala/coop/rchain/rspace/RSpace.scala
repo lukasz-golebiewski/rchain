@@ -47,7 +47,7 @@ class RSpace[F[_], C, P, E, A, R, K] private[rspace] (
       continuation: K,
       persist: Boolean,
       sequenceNumber: Int,
-      peek: Option[Seq[Boolean]] = None
+      peek: Map[C, Boolean]
   )(
       implicit m: Match[P, E, A, R]
   ): F[Either[E, Option[(ContResult[C, P, K], Seq[Result[R]])]]] =
