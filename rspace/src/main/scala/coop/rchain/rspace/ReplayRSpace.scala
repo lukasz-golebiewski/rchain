@@ -42,7 +42,8 @@ class ReplayRSpace[F[_], C, P, E, A, R, K](store: IStore[C, P, A, K], branch: Br
       patterns: Seq[P],
       continuation: K,
       persist: Boolean,
-      sequenceNumber: Int
+      sequenceNumber: Int,
+      peek: Option[Seq[Boolean]] = None
   )(
       implicit m: Match[P, E, A, R]
   ): F[Either[E, Option[(ContResult[C, P, K], Seq[Result[R]])]]] =

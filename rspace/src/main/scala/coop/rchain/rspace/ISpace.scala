@@ -11,7 +11,8 @@ final case class ContResult[C, P, R](
     persistent: Boolean,
     channels: Seq[C],
     patterns: Seq[P],
-    sequenceNumber: Int
+    sequenceNumber: Int,
+    peek: Boolean = false
 )
 
 /** The interface for RSpace
@@ -53,7 +54,8 @@ trait ISpace[F[_], C, P, E, A, R, K] {
       patterns: Seq[P],
       continuation: K,
       persist: Boolean,
-      sequenceNumber: Int = 0
+      sequenceNumber: Int = 0,
+      peek: Option[Seq[Boolean]] = None
   )(
       implicit m: Match[P, E, A, R]
   ): F[Either[E, Option[(ContResult[C, P, K], Seq[Result[R]])]]]

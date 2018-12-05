@@ -386,7 +386,8 @@ object ChargingRSpaceTest {
         patterns: immutable.Seq[BindPattern],
         continuation: TaggedContinuation,
         persist: Boolean,
-        sequenceNumber: Int
+        sequenceNumber: Int,
+        peek: Option[immutable.Seq[Boolean]] = None
     )(
         implicit m: Match[
           BindPattern,
