@@ -31,8 +31,10 @@ class PeekSpec
       _  = r1 shouldBe Right(None)
       r3 <- space.produceOne
       _ = matchOneContResult(r3.right.get.get._1)
+      _ = space.dataShouldNotExist(c1)
       r4 <- space.produceOne
       _ = r4 shouldBe Right(None)
+      _ = space.dataShouldExist(c1)
     } yield ()
   }
 
@@ -44,56 +46,41 @@ class PeekSpec
       _  = r2 shouldBe Right(None)
       r3 <- space.produceOne
       _ = matchOneContResult(r3.right.get.get._1)
+      _ = space.dataShouldExist(c1)
       r4 <- space.produceOne
       _ = r4 shouldBe matchOneContResult(r3.right.get.get._1)
+      _ = space.dataShouldNotExist(c1)
       r5 <- space.produceOne
       _ = r5 shouldBe Right(None)
+      _ = space.dataShouldExist(c1)
     } yield ()
   }
 
   it should "find a peek match for existing non-linear consume or a regular match for existing non-linear consume" ignore withTestSpace { space =>
-    val r = for {
-      r1 <- space.consumeOneChannelWithPeek
-      _  = r1 shouldBe Right(None)
-      r2 <- space.consume(
-        List(c1),
-        List(p1),
-        new EntriesCaptor,
-        persist = false,
-        sequenceNumber = 0)
-      _  = r2 shouldBe Right(None)
-      r3 <- space.produceOne
-    } yield r3
-    val nt = r.flatMap { v =>
-      val x = v.right.get.get._1
-      if(x.peek) {
-        matchOneContResult(x)
-        for {
-          r3 <- space.produceOne
-        } yield r3
+    def chooseMatch(r: Either[Nothing, Option[(ContResult[Channel, Pattern, EntriesCaptor], Seq[Result[AddressEntry]])]]) = {
+      val result = r.right.get.get._1
+      if (result.peek) {
+        matchOneContResult(result)
+        space.produceOne
       } else {
-        Task {v}
+        Task { r }
       }
     }
-    nt.map { v =>
-      val result = v.right.get.get._1
-      result.channels shouldBe Seq(c1)
-      result.patterns shouldBe Seq(p1)
-      result.peek shouldBe false
-    }
+    for {
+      r1 <- space.consumeOneChannelWithPeek
+      _  = r1 shouldBe Right(None)
+      r2 <- space.consumeOneChannelNoPeek
+      _  = r2 shouldBe Right(None)
+      r3 <- space.produceOne
+      v <- chooseMatch(r3)
+      _ = matchOneContResult(v.right.get.get._1, isPeek = false)
+      _ = space.dataShouldNotExist(c1)
+    } yield ()
   }
 
-  it should "find a peek match for an exiting partially matched non-linear consume" ignore withTestSpace { space =>
+  it should "find a peek match for an exiting partially matched (not peek match) non-linear consume" ignore withTestSpace { space =>
     for {
-      r1 <-       space
-        .consume(
-          List(c1, c2),
-          List(p1, p2),
-          new EntriesCaptor,
-          persist = false,
-          sequenceNumber = 0,
-          Map(c1 -> true, c2 -> false)
-        )
+      r1 <- space.consumeTwoChannelsMixedPeek
       _  = r1 shouldBe Right(None)
       r2 <- space.produce(c2, bob2, persist = false)
       _  = r2 shouldBe Right(None)
@@ -101,14 +88,12 @@ class PeekSpec
       _ = matchTwoContResult(r3.right.get.get._1)
       r4 <- space.produceOne
       _ = r4 shouldBe Right(None)
-      _ = space.store.withTxn(space.store.createTxnRead()) { txn =>
-        space.store.getData(txn, Seq(c1)) should not be empty
-        space.store.getData(txn, Seq(c2)) shouldBe empty
-      }
+      _ = space.dataShouldNotExist(c1)
+      _ = space.dataShouldExist(c2)
     } yield ()
   }
 
-  it should "find a peek match for an exiting partially matched non-linear consume" ignore withTestSpace { space =>
+  it should "find a peek match for an exiting partially matched (peek match) non-linear consume" ignore withTestSpace { space =>
     for {
       r1 <- space.consumeTwoChannelsWithPeek
       _  = r1 shouldBe Right(None)
@@ -118,10 +103,8 @@ class PeekSpec
       _ = matchTwoContResult(r3.right.get.get._1)
       r4 <- space.produceOne
       _ = r4 shouldBe Right(None)
-      _ = space.store.withTxn(space.store.createTxnRead()) { txn =>
-        space.store.getData(txn, Seq(c1)) should not be empty
-        space.store.getData(txn, Seq(c2)) should not be empty
-      }
+      _ = space.dataShouldExist(c1)
+      _ = space.dataShouldExist(c2)
     } yield ()
   }
 
@@ -142,6 +125,15 @@ class PeekSpec
         sequenceNumber = 0,
         Map(c1 -> true))
     }
+    def consumeOneChannelNoPeek = {
+      space.consume(
+        List(c1),
+        List(p1),
+        new EntriesCaptor,
+        persist = false,
+        sequenceNumber = 0)
+    }
+
     def produceOne = {
       space.produce(c1, bob1, persist = false)
     }
@@ -153,15 +145,39 @@ class PeekSpec
           new EntriesCaptor,
           persist = false,
           sequenceNumber = 0,
-          Map(c1 -> true, c2 -> true))
+          Map(c1 -> true, c2 -> true)
         )
+    }
+
+    def consumeTwoChannelsMixedPeek = {
+      space
+        .consume(
+          List(c1, c2),
+          List(p1, p2),
+          new EntriesCaptor,
+          persist = false,
+          sequenceNumber = 0,
+          Map(c1 -> true, c2 -> false)
+        )
+    }
+
+    def dataShouldExist(c: Channel) = {
+      space.store.withTxn(space.store.createTxnRead()) { txn =>
+        space.store.getData(txn, Seq(c)) should not be empty
+      }
+    }
+
+    def dataShouldNotExist(c: Channel) = {
+      space.store.withTxn(space.store.createTxnRead()) { txn =>
+        space.store.getData(txn, Seq(c)) shouldBe empty
+      }
     }
   }
 
-  def matchOneContResult(result: ContResult[Channel, Pattern, EntriesCaptor]) = {
+  def matchOneContResult(result: ContResult[Channel, Pattern, EntriesCaptor], isPeek: Boolean = true) = {
     result.channels shouldBe Seq(c1)
     result.patterns shouldBe Seq(p1)
-    result.peek shouldBe true
+    result.peek shouldBe isPeek
   }
 
   def matchTwoContResult(result: ContResult[Channel, Pattern, EntriesCaptor]) = {
