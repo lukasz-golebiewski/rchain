@@ -21,8 +21,6 @@ class PeekSpec
     } yield ()
   }
 
-  it should "not accept mismatched peek designations" ignore withTestSpace { space => ??? }
-
   behavior of "RSpace produce"
 
   it should "find a peek match for an existing non-linear consume" ignore withTestSpace { space =>
@@ -78,7 +76,7 @@ class PeekSpec
     } yield ()
   }
 
-  it should "find a peek match for an exiting partially matched (not peek match) non-linear consume" ignore withTestSpace { space =>
+  it should "find a peek match for an existing partially matched (not peek match) non-linear consume" ignore withTestSpace { space =>
     for {
       r1 <- space.consumeTwoChannelsMixedPeek
       _  = r1 shouldBe Right(None)
@@ -93,7 +91,7 @@ class PeekSpec
     } yield ()
   }
 
-  it should "find a peek match for an exiting partially matched (peek match) non-linear consume" ignore withTestSpace { space =>
+  it should "find a peek match for an existing partially matched (peek match) non-linear consume" ignore withTestSpace { space =>
     for {
       r1 <- space.consumeTwoChannelsWithPeek
       _  = r1 shouldBe Right(None)
