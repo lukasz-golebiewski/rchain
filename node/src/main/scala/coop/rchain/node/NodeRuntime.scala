@@ -1,7 +1,6 @@
 package coop.rchain.node
 
 import scala.concurrent.duration._
-
 import cats._
 import cats.data._
 import cats.effect._
@@ -10,7 +9,12 @@ import cats.syntax.applicative._
 import cats.syntax.apply._
 import cats.syntax.functor._
 import coop.rchain.blockstorage.BlockStore.BlockHash
-import coop.rchain.blockstorage.{BlockStore, InMemBlockStore}
+import coop.rchain.blockstorage.{
+  BlockDagFileStorage,
+  BlockStore,
+  InMemBlockDagStorage,
+  InMemBlockStore
+}
 import coop.rchain.casper._
 import coop.rchain.casper.MultiParentCasperRef.MultiParentCasperRef
 import coop.rchain.casper.protocol.BlockMessage
@@ -33,7 +37,6 @@ import coop.rchain.node.diagnostics._
 import coop.rchain.p2p.effects._
 import coop.rchain.rholang.interpreter.Runtime
 import coop.rchain.shared._
-
 import kamon._
 import kamon.zipkin.ZipkinReporter
 import monix.eval.Task
@@ -327,6 +330,12 @@ class NodeRuntime private[node] (
       blockMap,
       Metrics.eitherT(Monad[Task], metrics)
     )
+    blockDagStorage <- InMemBlockDagStorage.create[Effect](
+                        Concurrent[Effect],
+                        Sync[Effect],
+                        Log.eitherTLog(Monad[Task], log),
+                        blockStore
+                      )
     _       <- blockStore.clear() // TODO: Replace with a proper casper init when it's available
     oracle  = SafetyOracle.turanOracle[Effect](Monad[Effect])
     runtime = Runtime.create(storagePath, storageSize, storeType)(rspaceScheduler)
@@ -348,9 +357,11 @@ class NodeRuntime private[node] (
                               oracle,
                               Capture[Effect],
                               Sync[Effect],
+                              Concurrent[Effect],
                               Time.eitherTTime(Monad[Task], time),
                               Log.eitherTLog(Monad[Task], log),
                               multiParentCasperRef,
+                              blockDagStorage,
                               scheduler
                             )
     packetHandler = PacketHandler.pf[Effect](casperPacketHandler.handle)(
