@@ -82,6 +82,17 @@ lazy val shared = (project in file("shared"))
     )
   )
 
+lazy val graphz = (project in file("graphz"))
+  .settings(commonSettings: _*)
+  .settings(
+    version := "0.1",
+    libraryDependencies ++= commonDependencies ++ Seq(
+      catsCore,
+      catsEffect,
+      catsMtl
+    )
+  ).dependsOn(shared)
+
 lazy val casper = (project in file("casper"))
   .settings(commonSettings: _*)
   .settings(rholangSettings: _*)
@@ -128,7 +139,7 @@ lazy val comm = (project in file("comm"))
       grpcmonix.generators.GrpcMonixGenerator() -> (sourceManaged in Compile).value
     )
   )
-  .dependsOn(shared, crypto, models)
+  .dependsOn(shared % "compile->compile;test->test", crypto, models)
 
 lazy val crypto = (project in file("crypto"))
   .settings(commonSettings: _*)
@@ -172,7 +183,7 @@ lazy val node = (project in file("node"))
   .settings(commonSettings: _*)
   .enablePlugins(RpmPlugin, DebianPlugin, JavaAppPackaging, BuildInfoPlugin)
   .settings(
-    version := "0.7.1",
+    version := "0.8.1",
     name := "rnode",
     maintainer := "Pyrofex, Inc. <info@pyrofex.net>",
     packageSummary := "RChain Node",
@@ -319,7 +330,8 @@ lazy val rholang = (project in file("rholang"))
       scallop,
       lightningj,
       catsLawsTest,
-      catsLawsTestkitTest
+      catsLawsTestkitTest,
+      catsMtlLawsTest
     ),
     mainClass in assembly := Some("coop.rchain.rho2rose.Rholang2RosetteCompiler"),
     coverageExcludedFiles := Seq(
@@ -495,6 +507,7 @@ lazy val rchain = (project in file("."))
     casper,
     comm,
     crypto,
+    graphz,
     models,
     node,
     regex,
