@@ -89,8 +89,8 @@ class PeekSpec
         _  = matchContResult(r3, List(c1, c2), List(p1, p2))
         r4 <- space.produce(c1, bob1, persist = false)
         _  = r4 shouldBe Right(None)
-        _  = space.dataShouldNotExist(c1)
-        _  = space.dataShouldExist(c2)
+        _  = space.dataShouldExist(c1)
+        _  = space.dataShouldNotExist(c2)
       } yield ()
   }
 
