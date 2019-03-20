@@ -17,7 +17,6 @@ import coop.rchain.models.Var.WildcardMsg
 import coop.rchain.models._
 import coop.rchain.models.rholang.sorter.Sortable
 import coop.rchain.rholang.interpreter._
-import coop.rchain.rholang.interpreter.Splittable
 import coop.rchain.rholang.interpreter.accounting._
 import coop.rchain.rholang.interpreter.accounting.utils._
 import coop.rchain.rholang.interpreter.errors.{InterpreterError, OutOfPhlogistonsError}
