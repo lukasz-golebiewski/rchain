@@ -29,8 +29,8 @@ package object matcher {
 
   import coop.rchain.rholang.interpreter.matcher.StreamT
 
-  implicit def matcherMonadCostLog[F[_]: Monad: _cost](): _cost[MatcherMonadT[F, ?]] =
-    λ[F ~> MatcherMonadT[F, ?]](fa => StateT.liftF(StreamT.liftF(fa)))
+  def matcherMonadCostLog[F[_]: Monad: _cost](): _cost[MatcherMonadT[F, ?]] =
+    ntCostLog(λ[F ~> MatcherMonadT[F, ?]](fa => StateT.liftF(StreamT.liftF(fa))))
 
   // The naming convention means: this is an effect-type alias.
   // Will be used similarly to capabilities, but for more generic and probably low-level/implementation stuff.

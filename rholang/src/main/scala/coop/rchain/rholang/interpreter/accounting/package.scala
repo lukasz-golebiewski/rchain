@@ -30,13 +30,13 @@ package object accounting extends Costs {
       override def set(s: Cost): F[Unit]            = state.set(s)
     }
 
-  def charge[F[_]: Monad](
+  def charge[F[_]](
       amount: Cost
   )(implicit cost: _cost[F], error: _error[F]): F[Unit] =
     for {
       _ <- error.bracketCase(cost.get)(
             c =>
-              Monad[F].ifM[Unit]((c.value < 0).pure[F])(
+              Monad[F].ifM[Unit](error.delay(c.value < 0))(
                 ifTrue = {
                   for {
                     _ <- error.raiseError[Unit](OutOfPhlogistonsError)
@@ -44,7 +44,8 @@ package object accounting extends Costs {
                 },
                 ifFalse = {
                   for {
-                    _        <- cost.tell(Chain.one(amount))
+                    _ <- cost.tell(Chain.one(amount))
+                    //_        = println(s"Told $amount when cost was $c")
                     newValue = c - amount
                     _        <- cost.set(newValue)
                   } yield (())
@@ -63,7 +64,7 @@ package object accounting extends Costs {
       def tell(l: Chain[Cost]): M[Unit] = Applicative[M].pure(())
     }
 
-  implicit def ntCostLog[F[_]: Monad, G[_]: Monad](
+  def ntCostLog[F[_]: Monad, G[_]: Monad](
       nt: F ~> G
   )(implicit C: _cost[F]): _cost[G] =
     new MonadState[G, Cost] with FunctorTell[G, Chain[Cost]] {

@@ -202,16 +202,18 @@ private trait StreamTSync[F[_]] extends Sync[StreamT[F, ?]] with StreamTMonadErr
 
   import cats.effect.ExitCase
 
-  private[this] implicit def unlift[A](v: StreamT[F, A]): F[A] = F.map(StreamT.run(v))(_.head)
+  private[this] def unlift[A](v: StreamT[F, A]): F[A] = F.map(StreamT.run(v))(_.head)
+
+  private[this] def unlift2(v: StreamT[F, Unit]): F[Unit] = F.map(StreamT.run(v))(_ => ())
 
   def bracketCase[A, B](acquire: StreamT[F, A])(use: A => StreamT[F, B])(
       release: (A, ExitCase[Throwable]) => StreamT[F, Unit]
   ): StreamT[F, B] =
     StreamT.liftF(
-      F.bracketCase(acquire)(use.andThen(unlift(_)))((a, b) => release(a, b))
+      F.bracketCase(unlift(acquire))(use.andThen(unlift(_)))((a, b) => unlift2(release(a, b)))
     )
 
-  def suspend[A](thunk: => StreamT[F, A]): StreamT[F, A] = StreamT.liftF(F.suspend(thunk))
+  def suspend[A](thunk: => StreamT[F, A]): StreamT[F, A] = StreamT.liftF(F.suspend(unlift(thunk)))
 
 }
 
