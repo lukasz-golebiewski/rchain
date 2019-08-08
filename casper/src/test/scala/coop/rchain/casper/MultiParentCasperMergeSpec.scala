@@ -235,7 +235,7 @@ class MultiParentCasperMergeSpec extends FlatSpec with Matchers with Inspectors 
     "4! (C!)"   -> PERSISTENT_COULD_NOT_MATCH -> conflicts(F_, C_ | S0, S0),
     "4X (4!)"   -> VOLATILE_EVENT             -> merges(F_, F_ | S0, Nil),
     "4X (C!)"   -> PERSISTENT_COULD_NOT_MATCH -> merges(F_, C_ | S0, Nil),
-    "C! (C!)"   -> PERSISTENT_COULD_NOT_MATCH -> conflicts(C_, C_ | S0, S0),
+    "C! (C!)"   -> PERSISTENT_COULD_NOT_MATCH -> merges(C_, C1 | S1, S0),
     "CX (C!)"   -> PERSISTENT_COULD_NOT_MATCH -> merges(C_, C_ | S0, Nil),
     "(!4) 4!"   -> VOLATILE_EVENT             -> merges(S1 | F1, F_, S0),
     "(!4) !C"   -> VOLATILE_EVENT             -> merges(S1 | F1, S0, C0),
