@@ -84,8 +84,8 @@ class MultiParentCasperMergeSpec extends FlatSpec with Matchers with Inspectors 
         |Mergeable if different events, or at least one matched event is non-linear.
         |""".stripMargin
 
-  val COULD_MATCH_SAME_TRUE  = COULD_MATCH_SAME + "This is the case where both incoming events could have matched what was in the other TS."
-  val COULD_MATCH_SAME_FALSE = COULD_MATCH_SAME + "This is the case where the incoming events match differently."
+  val COULD_MATCH_SAME_CONFLICTS = COULD_MATCH_SAME + "This is the case where both incoming events could have matched what was in the other TS."
+  val COULD_MATCH_SAME_MERGES    = COULD_MATCH_SAME + "This is the case where the incoming events match differently."
 
   //diff polarity, merges
   val HAD_ITS_MATCH =
@@ -165,23 +165,23 @@ class MultiParentCasperMergeSpec extends FlatSpec with Matchers with Inspectors 
     "!X CX"     -> INCOMING_COULD_MATCH       -> conflicts(S0, C_, Nil),
     "!X C!"     -> INCOMING_COULD_MATCH       -> conflicts(S0, C_, S0),
     "!X (C!)"   -> PERSISTENT_COULD_MATCH     -> conflicts(S0, C_ | S0, Nil),
-    "!4 !4"     -> COULD_MATCH_SAME_TRUE      -> conflicts(S0, S1, F_),
-    "!4 !4"     -> COULD_MATCH_SAME_FALSE     -> merges(S0, S1, F0 | F1),
+    "!4 !4"     -> COULD_MATCH_SAME_CONFLICTS -> conflicts(S0, S1, F_),
+    "!4 !4"     -> COULD_MATCH_SAME_MERGES    -> merges(S0, S1, F0 | F1),
     "!4 (!4)"   -> VOLATILE_EVENT             -> merges(S0, S1 | F_, F0),
     "(!4) (!4)" -> VOLATILE_EVENT             -> merges(S0 | F_, S0 | F_, Nil),
-    "!4 !C"     -> COULD_MATCH_SAME_FALSE     -> merges(S0, S1, F0 | C1),
+    "!4 !C"     -> COULD_MATCH_SAME_MERGES    -> merges(S0, S1, F0 | C1),
     "!4 4X"     -> HAD_ITS_MATCH              -> merges(S0, F_, F_),
     "!4 4!"     -> HAD_ITS_MATCH              -> merges(S0, F_, F0 | S1),
     "!4 (4!)"   -> VOLATILE_EVENT             -> merges(S0, S1 | F_, F0),
     "!4 4!!"    -> HAD_ITS_MATCH              -> merges(S0, F_, F0 | R1),
     "!4 !!X"    -> SAME_POLARITY_MERGE        -> merges(S0, R1, F0),
-    "!4 !!4"    -> COULD_MATCH_SAME_TRUE      -> conflicts(S0, R1, F_ | F1),
-    "!4 !!4"    -> COULD_MATCH_SAME_FALSE     -> merges(S0, R1, F0 | F1),
+    "!4 !!4"    -> COULD_MATCH_SAME_CONFLICTS -> conflicts(S0, R1, F_ | F1),
+    "!4 !!4"    -> COULD_MATCH_SAME_MERGES    -> merges(S0, R1, F0 | F1),
     "!4 CX"     -> HAD_ITS_MATCH              -> merges(S0, C_, F_),
     "!4 C!"     -> HAD_ITS_MATCH              -> merges(S0, C_, F0 | S1),
     "!4 (C!)"   -> PERSISTENT_COULD_NOT_MATCH -> merges(S0, C_ | S1, F0),
     "!4 (!C)"   -> PERSISTENT_COULD_NOT_MATCH -> merges(S0, S1 | C_, F0),
-    "!C !C"     -> COULD_MATCH_SAME_TRUE      -> merges(S0, S0, C_),
+    "!C !C"     -> COULD_MATCH_SAME_MERGES    -> merges(S0, S0, C_),
     "!C (!C)"   -> PERSISTENT_COULD_NOT_MATCH -> merges(S0, C_ | S1, C0),
     "(!C) !C"   -> PERSISTENT_COULD_NOT_MATCH -> coveredBy("!C (!C)"),
     "!C 4X"     -> HAD_ITS_MATCH              -> merges(S0, F_, C_),
@@ -189,27 +189,27 @@ class MultiParentCasperMergeSpec extends FlatSpec with Matchers with Inspectors 
     "!C (4!)"   -> VOLATILE_EVENT             -> merges(S0, F1 | S1, C0),
     "!C 4!!"    -> HAD_ITS_MATCH              -> merges(S0, F_, C0 | R1),
     "!C !!X"    -> SAME_POLARITY_MERGE        -> merges(S0, R1, C0),
-    "!C !!4"    -> COULD_MATCH_SAME_FALSE     -> merges(S0, R1, C0 | F1),
+    "!C !!4"    -> COULD_MATCH_SAME_MERGES    -> merges(S0, R1, C0 | F1),
     "!C CX"     -> HAD_ITS_MATCH              -> merges(S0, C_, C_),
     "!C C!"     -> HAD_ITS_MATCH              -> merges(S0, C_, C0 | S1),
     "!C (C!)"   -> PERSISTENT_COULD_NOT_MATCH -> coveredBy("!C (!C)"),
     "4X 4X"     -> SAME_POLARITY_MERGE        -> merges(F_, F_, Nil),
     "4X 4!"     -> SAME_POLARITY_MERGE        -> merges(F0, F_, S1),
     // Skipping 4X 4!! merges, 4X !!X may merge or not, 4X !!4 may merge or not
-    "4X CX"    -> SAME_POLARITY_MERGE    -> merges(F_, C_, Nil),
-    "4X C!"    -> SAME_POLARITY_MERGE    -> merges(F0, C1, S1),
-    "4X (!!4)" -> PERSISTENT_COULD_MATCH -> conflicts(F_, R0 | F_, Nil),
-    "4! 4!"    -> COULD_MATCH_SAME_TRUE  -> conflicts(F_, F_, S0),
-    "4! 4!"    -> COULD_MATCH_SAME_FALSE -> merges(F0, F1, S0 | S1),
+    "4X CX"    -> SAME_POLARITY_MERGE        -> merges(F_, C_, Nil),
+    "4X C!"    -> SAME_POLARITY_MERGE        -> merges(F0, C1, S1),
+    "4X (!!4)" -> PERSISTENT_COULD_MATCH     -> conflicts(F_, R0 | F_, Nil),
+    "4! 4!"    -> COULD_MATCH_SAME_CONFLICTS -> conflicts(F_, F_, S0),
+    "4! 4!"    -> COULD_MATCH_SAME_MERGES    -> merges(F0, F1, S0 | S1),
     // Skipping 4! 4!! merges, 4! !!X merges, 4! !!4 merges
-    "4! CX" -> SAME_POLARITY_MERGE    -> merges(F_, C1, S0),
-    "4! C!" -> COULD_MATCH_SAME_TRUE  -> conflicts(F_, C_, S0),
-    "4! C!" -> COULD_MATCH_SAME_FALSE -> merges(F0, C1, S0 | S1),
-    "CX CX" -> SAME_POLARITY_MERGE    -> merges(C_, C_, Nil),
-    "CX C!" -> COULD_MATCH_SAME_TRUE  -> conflicts(C0, C0, S0),
-    "CX C!" -> COULD_MATCH_SAME_FALSE -> merges(C1, C0, S0),
-    "C! C!" -> COULD_MATCH_SAME_TRUE  -> conflicts(C_, C_, S0),
-    "C! C!" -> COULD_MATCH_SAME_FALSE -> merges(C0, C1, S0 | S1),
+    "4! CX" -> SAME_POLARITY_MERGE        -> merges(F_, C1, S0),
+    "4! C!" -> COULD_MATCH_SAME_CONFLICTS -> conflicts(F_, C_, S0),
+    "4! C!" -> COULD_MATCH_SAME_MERGES    -> merges(F0, C1, S0 | S1),
+    "CX CX" -> SAME_POLARITY_MERGE        -> merges(C_, C_, Nil),
+    "CX C!" -> COULD_MATCH_SAME_CONFLICTS -> conflicts(C0, C0, S0),
+    "CX C!" -> COULD_MATCH_SAME_MERGES    -> merges(C1, C0, S0),
+    "C! C!" -> COULD_MATCH_SAME_CONFLICTS -> conflicts(C_, C_, S0),
+    "C! C!" -> COULD_MATCH_SAME_MERGES    -> merges(C0, C1, S0 | S1),
     // 4!! / !!4 row is similar to !4 / 4! and thus skipped
     // C!! / !!C row is similar to !C / C! and thus skipped
     "CX !!X"    -> INCOMING_COULD_MATCH       -> conflicts(R0, C_, Nil),
