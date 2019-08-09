@@ -244,9 +244,9 @@ object EstimatorHelper {
     private[casper] def conflicts(other: TuplespaceEvent): Boolean =
       if (ev.incoming.polarity == other.incoming.polarity)
         (for {
-          a <- ev.matched
-          b <- other.matched
-        } yield a == b && b.cardinality == Linear).getOrElse(false)
+          leftMatched  <- ev.matched
+          rightMatched <- other.matched
+        } yield leftMatched == rightMatched && rightMatched.cardinality == Linear).getOrElse(false)
       else
         !(
           ev.incoming.cardinality == Linear && other.incoming.cardinality == Linear && (ev.matched != None || other.matched != None) ||
