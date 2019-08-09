@@ -23,46 +23,30 @@ case object NonLinear extends Cardinality
 
 object TuplespaceEvent {
 
-  implicit private[this] def liftProduce(produce: Produce): TuplespaceOperation =
+  private[this] def toOperation(produce: Produce): TuplespaceOperation =
     TuplespaceOperation(Send, if (produce.persistent) NonLinear else Linear, produce.hash)
 
-  implicit private[this] def liftConsume(consume: Consume): TuplespaceOperation =
+  private[this] def toOperation(consume: Consume): TuplespaceOperation =
     TuplespaceOperation(Receive, if (consume.persistent) NonLinear else Linear, consume.hash)
 
   def from(produce: Produce): (Blake2b256Hash, TuplespaceEvent) =
-    produce.channelsHash -> TuplespaceEvent(
-      produce,
-      None
-    )
+    produce.channelsHash -> TuplespaceEvent(toOperation(produce), None)
 
   def from(consume: Consume): Option[(Blake2b256Hash, TuplespaceEvent)] = consume match {
     case Consume(singleChannelHash :: Nil, _, _, _) =>
-      Some(
-        singleChannelHash -> TuplespaceEvent(
-          consume,
-          None
-        )
-      )
+      Some(singleChannelHash -> TuplespaceEvent(toOperation(consume), None))
     case _ => None
   }
 
-  def from(
-      comm: COMM,
-      produces: Set[Produce]
-  ): Option[(Blake2b256Hash, TuplespaceEvent)] =
+  def from(comm: COMM, produces: Set[Produce]): Option[(Blake2b256Hash, TuplespaceEvent)] =
     comm match {
       case COMM(consume, produce :: Nil, _) => {
         val incoming: TuplespaceOperation =
-          if (produces.contains(produce)) produce else consume
+          if (produces.contains(produce)) toOperation(produce) else toOperation(consume)
         val matched: Option[TuplespaceOperation] = Some(
-          if (incoming == liftProduce(produce)) consume else produce
+          if (incoming == toOperation(produce)) toOperation(consume) else toOperation(produce)
         )
-        Some(
-          produce.channelsHash -> TuplespaceEvent(
-            incoming,
-            matched
-          )
-        )
+        Some(produce.channelsHash -> TuplespaceEvent(incoming, matched))
       }
       case _ => None
     }

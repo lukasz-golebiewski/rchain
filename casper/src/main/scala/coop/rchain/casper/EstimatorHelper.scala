@@ -14,6 +14,8 @@ import coop.rchain.rspace.trace._
 
 import scala.collection.BitSet
 
+final case class BlockEvents(produces: Set[Produce], consumes: Set[Consume], comms: Set[COMM])
+
 object EstimatorHelper {
 
   def chooseNonConflicting[F[_]: Monad: Log: BlockStore](
@@ -89,13 +91,15 @@ object EstimatorHelper {
         // TODO: fail fast
       } yield (res)).contains(true)
 
+    val b1Ops = tuplespaceEventsPerChannel(b1Events)
     val b2Ops = tuplespaceEventsPerChannel(b2Events)
-    tuplespaceEventsPerChannel(b1Events)
+    val conflictPerChannel = b1Ops
       .map {
-        case (k, v) =>
-          (k, channelConflicts(v, b2Ops.get(k).getOrElse(Set.empty)))
+        case (channel, v) =>
+          (channel, channelConflicts(v, b2Ops.get(channel).getOrElse(Set.empty)))
       }
-      .filter { case (_, v) => v }
+    conflictPerChannel
+      .filter { case (_, conflicts) => conflicts }
       .keys
       .nonEmpty
   }
@@ -105,16 +109,12 @@ object EstimatorHelper {
       produce => !produce.persistent && produces.contains(produce)
     )
 
-  type BlockEvents = (Set[Produce], Set[Consume], Set[COMM])
-
-  private[this] def allChannels(events: BlockEvents) = events match {
-    case (freeProduceEvents, freeConsumeEvents, nonVolatileCommEvents) =>
-      freeProduceEvents.map(_.channelsHash).toSet ++ freeConsumeEvents
-        .flatMap(_.channelsHashes)
-        .toSet ++ nonVolatileCommEvents.flatMap { comm =>
-        comm.consume.channelsHashes ++ comm.produces.map(_.channelsHash)
-      }.toSet
-  }
+  private[this] def allChannels(events: BlockEvents) =
+    events.produces.map(_.channelsHash).toSet ++ events.consumes
+      .flatMap(_.channelsHashes)
+      .toSet ++ events.comms.flatMap { comm =>
+      comm.consume.channelsHashes ++ comm.produces.map(_.channelsHash)
+    }.toSet
 
   private[this] def extractBlockEvents[F[_]: Monad: BlockStore](
       blockAncestorsMeta: List[BlockMetadata]
@@ -138,35 +138,32 @@ object EstimatorHelper {
       consumesInVolatileCommEvents = volatileCommEvents.map(_.consume)
       produceEvents                = allProduceEvents.filterNot(producesInVolatileCommEvents.contains(_))
       consumeEvents                = allConsumeEvents.filterNot(consumesInVolatileCommEvents.contains(_))
-    } yield (produceEvents, consumeEvents, nonVolatileCommEvents)
+    } yield BlockEvents(produceEvents, consumeEvents, nonVolatileCommEvents)
 
   private[this] def extractJoinedChannels(b: BlockEvents): Set[Blake2b256Hash] = {
+
     def joinedChannels(consumes: Set[Consume]) =
       consumes.withFilter(Consume.hasJoins).flatMap(_.channelsHashes)
-    b match {
-      case (_, consumes, comms) =>
-        joinedChannels(consumes) ++ joinedChannels(comms.map(_.consume))
-    }
+
+    joinedChannels(b.consumes) ++ joinedChannels(b.comms.map(_.consume))
+
   }
 
   private[this] def tuplespaceEventsPerChannel(
       b: BlockEvents
-  ): Map[Blake2b256Hash, Set[TuplespaceEvent]] =
-    b match {
-      case (produces, consumes, comms) =>
-        val nonPersistentProducesInComms = comms.flatMap(_.produces).filterNot(_.persistent)
-        val nonPersistentConsumesInComms = comms.map(_.consume).filterNot(_.persistent)
-        val freeProduces                 = produces.filterNot(nonPersistentProducesInComms.contains)
-        val freeConsumes                 = consumes.filterNot(nonPersistentConsumesInComms.contains)
+  ): Map[Blake2b256Hash, Set[TuplespaceEvent]] = {
+    val nonPersistentProducesInComms = b.comms.flatMap(_.produces).filterNot(_.persistent)
+    val nonPersistentConsumesInComms = b.comms.map(_.consume).filterNot(_.persistent)
+    val freeProduces                 = b.produces.diff(nonPersistentProducesInComms)
+    val freeConsumes                 = b.consumes.diff(nonPersistentConsumesInComms)
 
-        val produceEvents = freeProduces.map(TuplespaceEvent.from(_))
-        val consumeEvents = freeConsumes.flatMap(TuplespaceEvent.from(_))
-        val commEvents    = comms.flatMap(TuplespaceEvent.from(_, produces))
+    val produceEvents = freeProduces.map(TuplespaceEvent.from(_))
+    val consumeEvents = freeConsumes.flatMap(TuplespaceEvent.from(_))
+    val commEvents    = b.comms.flatMap(TuplespaceEvent.from(_, b.produces))
 
-        (produceEvents
-          .combine(consumeEvents)
-          .combine(commEvents))
-          .groupBy(_._1)
-          .mapValues[Set[TuplespaceEvent]](_.map(_._2))
-    }
+    (produceEvents ++ consumeEvents ++ commEvents)
+      .groupBy(_._1)
+      .mapValues[Set[TuplespaceEvent]](_.map(_._2))
+  }
+
 }
