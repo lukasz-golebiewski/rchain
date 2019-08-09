@@ -75,9 +75,9 @@ object TuplespaceEvent {
     private[casper] def conflicts(other: TuplespaceEvent): Boolean =
       if (ev.incoming.polarity == other.incoming.polarity)
         (for {
-          leftMatched  <- ev.matched
-          rightMatched <- other.matched
-        } yield leftMatched == rightMatched && rightMatched.cardinality == Linear).getOrElse(false)
+          thisMatched  <- ev.matched
+          otherMatched <- other.matched
+        } yield thisMatched == otherMatched && otherMatched.cardinality == Linear).getOrElse(false)
       else
         !(
           ev.incoming.cardinality == Linear && other.incoming.cardinality == Linear && (ev.matched != None || other.matched != None) ||

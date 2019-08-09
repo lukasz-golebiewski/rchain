@@ -158,14 +158,10 @@ object EstimatorHelper {
         val nonPersistentConsumesInComms = comms.map(_.consume).filterNot(_.persistent)
         val freeProduces                 = produces.filterNot(nonPersistentProducesInComms.contains)
         val freeConsumes                 = consumes.filterNot(nonPersistentConsumesInComms.contains)
-        val produceEvents = freeProduces
-          .map(TuplespaceEvent.from(_))
 
-        val consumeEvents = freeConsumes
-          .flatMap(TuplespaceEvent.from(_))
-
-        val commEvents = comms
-          .flatMap(TuplespaceEvent.from(_, produces))
+        val produceEvents = freeProduces.map(TuplespaceEvent.from(_))
+        val consumeEvents = freeConsumes.flatMap(TuplespaceEvent.from(_))
+        val commEvents    = comms.flatMap(TuplespaceEvent.from(_, produces))
 
         (produceEvents
           .combine(consumeEvents)
