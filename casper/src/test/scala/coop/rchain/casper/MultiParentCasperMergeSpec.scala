@@ -75,6 +75,10 @@ class MultiParentCasperMergeSpec
     peekMergeabilityCases.map(_._2).parSequence
   }
 
+  it should "not cause replay errors" in effectTest {
+    nonDetMergeabilityCases.map(_._2).parSequence
+  }
+
   it should "not produce UnusedCommEvent while merging non conflicting blocks in the presence of conflicting ones" in effectTest {
 
     val registryRho =

@@ -63,15 +63,27 @@ object TuplespaceEvent {
     private[casper] def conflicts(other: TuplespaceEvent): Boolean =
       if (ev.incoming.polarity == other.incoming.polarity) {
 
+        val bothPeeks = (ev.incoming.cardinality == Peek) && (other.incoming.cardinality ==
+          Peek)
+
         val bothMatchedSameLinearEvent = for {
           thisMatched  <- ev.matched
           otherMatched <- other.matched
-        } yield thisMatched == otherMatched && (otherMatched.cardinality == Linear || otherMatched.cardinality == Peek)
+        } yield (thisMatched == otherMatched && !bothPeeks) && (otherMatched.cardinality == Linear || otherMatched.cardinality == Peek)
 
         bothMatchedSameLinearEvent.getOrElse(false)
+
       } else {
+        ev.peeked.map(peeked => TuplespaceEvent(peeked, None).conflicts(other)).getOrElse(false) ||
+        other.peeked.map(peeked => TuplespaceEvent(peeked, None).conflicts(ev)).getOrElse(false) ||
         ev.unsatisfied && other.unsatisfied
       }
+
+    private[casper] def peeked: Option[TuplespaceOperation] =
+      if (ev.incoming.cardinality == Peek) ev.matched
+      else if (ev.matched.fold(false)(_.cardinality == Peek))
+        Some(ev.incoming)
+      else None
 
     private[casper] def unsatisfied: Boolean =
       ev.incoming.cardinality match {
