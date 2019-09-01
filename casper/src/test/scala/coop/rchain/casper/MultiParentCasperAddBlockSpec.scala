@@ -204,6 +204,31 @@ class MultiParentCasperAddBlockSpec extends FlatSpec with Matchers with Inspecto
     }
   }
 
+  it should "propose and replay shortslow" in effectTest {
+    HashSetCasperTestNode.networkEff(genesis, networkSize = 1).use { nodes =>
+      for {
+        deployData  <- ConstructDeploy.sourceDeployNowF("""
+  contract @1234567(@n) = {
+    match n {
+      0 => Nil
+      _ => @1234567!(n-1)
+    }
+  } |
+  @1234567!(2)
+
+""")
+        signedBlock <- nodes(0).addBlock(deployData)
+        /*
+        _           <- nodes(1).receive()
+        result      <- nodes(1).casperEff.contains(signedBlock.blockHash) shouldBeF true
+        _ <- nodes.toList.traverse_ { node =>
+              node.blockStore.get(signedBlock.blockHash) shouldBeF Some(signedBlock)
+            }
+       */
+      } yield ()
+    }
+  }
+
   it should "add a valid block from peer" in effectTest {
     HashSetCasperTestNode.networkEff(genesis, networkSize = 2).use { nodes =>
       for {
